@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qdatabrowser/lucide/arrow-left-right.svg</file>
+        <file>qdatabrowser/lucide/chart-pie.svg</file>
+        <file>qdatabrowser/lucide/copy.svg</file>
+        <file>qdatabrowser/lucide/panel-bottom-open.svg</file>
+        <file>qdatabrowser/lucide/panel-bottom-close.svg</file>
+        <file>qdatabrowser/lucide/panel-bottom.svg</file>
+        <file>qdatabrowser/lucide/panel-left-open.svg</file>
+        <file>qdatabrowser/lucide/panel-left-close.svg</file>
+        <file>qdatabrowser/lucide/blocks.svg</file>
+        <file>qdatabrowser/lucide/layers.svg</file>
+        <file>qdatabrowser/lucide/table.svg</file>
+        <file>qdatabrowser/lucide/folder.svg</file>
+        <file>qdatabrowser/lucide/map.svg</file>
+        <file>qdatabrowser/lucide/panel-left.svg</file>
+        <file>qdatabrowser/lucide/sheet.svg</file>
+        <file>qdatabrowser/lucide/chart-spline.svg</file>
+        <file>qdatabrowser/lucide/download.svg</file>
+    </qresource>
+</RCC>
