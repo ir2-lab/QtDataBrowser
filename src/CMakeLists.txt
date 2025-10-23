@@ -7,6 +7,7 @@ add_library(${PROJECT_NAME} STATIC
     qdatasliceselector.h 
     qdatasliceselector.cpp
     qtdatabrowser_resources.qrc
+    dataslice.h dataslice.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

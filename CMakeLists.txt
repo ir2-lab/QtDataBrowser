@@ -9,10 +9,10 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(QTDATABROWSER_BUILD_EXAMPLES ON)
+option(QTDATABROWSER_BUILD_EXAMPLES "Build example programs" OFF)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets Svg)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Svg)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Svg)
+message(STATUS "Found Qt${QT_VERSION_MAJOR}")
 
 include(FetchContent)
 
@@ -22,7 +22,7 @@ set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER)
 
 FetchContent_Declare(qmatplotwidget
       GIT_REPOSITORY https://github.com/gapost/qmatplotwidget.git
-      GIT_TAG dev
+      GIT_TAG master
       GIT_SUBMODULES_RECURSE FALSE
       GIT_SHALLOW TRUE
 )

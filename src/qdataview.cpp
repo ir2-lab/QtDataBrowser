@@ -51,7 +51,7 @@ public:
     {
         if (!validSlice())
             return 0;
-        return slice_->dim()[1];
+        return slice_->ndim() == 1 ? 1 : slice_->dim()[1];
     }
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override
     {
@@ -170,4 +170,31 @@ QIcon QHeatMapDataView::icon() const
     return QIcon(":/qdatabrowser/lucide/map.svg");
 }
 
-void QHeatMapDataView::updateView_() {}
+void QHeatMapDataView::exportImage() const
+{
+    // Export the plot to 160x120mm page
+    heatMap->exportToFile("export.pdf", QSize(160, 120));
+}
+
+void QHeatMapDataView::updateView_()
+{
+    heatMap->clear();
+
+    if (!slice_ || slice_->empty()) {
+        return;
+    }
+
+    int ndim = slice_->ndim();
+    auto dim = slice_->dim();
+
+    if (ndim == 2) {
+        //DataSlice::vec_t x{0.0, 1.0 * dim[0]};
+        //DataSlice::vec_t y{0.0, 1.0 * dim[1]};
+        heatMap->imagesc(slice_->data(), dim[0]);
+
+    } else {
+        //DataSlice::vec_t x{0.0, 1.0 * dim[0]};
+        //DataSlice::vec_t y{0.0, 1.0};
+        heatMap->imagesc(slice_->data(), dim[0]);
+    }
+}

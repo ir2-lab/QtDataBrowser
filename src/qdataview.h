@@ -61,7 +61,7 @@ public:
     QIcon icon() const override;
 
     bool canExportImage() const override { return true; }
-    virtual void exportImage() const;
+    void exportImage() const override;
 
 protected:
     // view widgets
@@ -79,6 +79,7 @@ public:
     QIcon icon() const override;
 
     bool canExportImage() const override { return true; }
+    void exportImage() const override;
 
 protected:
     // view widgets

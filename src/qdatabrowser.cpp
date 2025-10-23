@@ -1,5 +1,9 @@
 #include "qdatabrowser.h"
 
+#include "dataslice.h"
+#include "qdatasliceselector.h"
+#include "qdataview.h"
+
 #include <QClipboard>
 #include <QComboBox>
 #include <QFileDialog>
@@ -17,9 +21,6 @@
 #include <QVBoxLayout>
 
 #include <fstream>
-
-#include "qdataview.h"
-#include "qdatasliceselector.h"
 
 inline void __initResource__()
 {
@@ -88,7 +89,7 @@ QDataBrowser::QDataBrowser(QWidget *parent)
         btExport->setPopupMode(QToolButton::InstantPopup);
         btExport->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         {
-            QMenu *toolMenu = new QMenu;
+            QMenu *toolMenu = new QMenu(this);
             actExportCSV = toolMenu->addAction("Export data to CSV ...");
             actExportCSV->setEnabled(false);
             connect(actExportCSV, &QAction::triggered, this, &QDataBrowser::onExportCSV);
@@ -134,6 +135,8 @@ QDataBrowser::QDataBrowser(QWidget *parent)
     viewTab->addTab(dataView[0], dataView[0]->icon(), "Table");
     dataView[1] = new QPlotDataView;
     viewTab->addTab(dataView[1], dataView[1]->icon(), "Line");
+    dataView[2] = new QHeatMapDataView;
+    viewTab->addTab(dataView[2], dataView[2]->icon(), "HeatMap");
     vbox->addWidget(viewTab);
 
     /* create bottom toolbox */
@@ -178,8 +181,7 @@ bool QDataBrowser::addGroup(const QString &name, const QString &location, const 
     if (!isGroup(parent))
         return false;
     QStandardItem *g = new QStandardItem(QIcon(":/qdatabrowser/lucide/folder.svg"), name);
-    AbstractDataStore *d{nullptr};
-    g->setData(QVariant::fromValue(d));
+    g->setData(QVariant::fromValue(DataStorePtr{}));
     g->setSelectable(false);
     g->setEditable(false);
     g->setToolTip(desc.isEmpty() ? "Group" : desc);
@@ -194,12 +196,18 @@ bool QDataBrowser::addData(AbstractDataStore *data, const QString &location)
         return false;
     if (!isGroup(parent))
         return false;
-    QStandardItem *g = new QStandardItem(QIcon(":/qdatabrowser/lucide/layers.svg"),
-                                         data->name().c_str());
-    g->setData(QVariant::fromValue(data));
-    g->setEditable(false);
-    g->setToolTip(data->description().empty() ? "Data array" : data->description().c_str());
-    parent->appendRow(g);
+
+    QString name(data->name().c_str());
+    QStandardItem *node = findChild(name, parent);
+    if (!node) {
+        node = new QStandardItem(QIcon(":/qdatabrowser/lucide/layers.svg"), name);
+        parent->appendRow(node);
+    }
+
+    node->setData(QVariant::fromValue(DataStorePtr(data)));
+    node->setEditable(false);
+    node->setToolTip(data->description().empty() ? "Data array" : data->description().c_str());
+
     return true;
 }
 
@@ -213,6 +221,47 @@ bool QDataBrowser::selectItem(const QString &path)
     if (ret)
         dataTree->selectionModel()->setCurrentIndex(i, QItemSelectionModel::NoUpdate);
     return ret;
+}
+
+void QDataBrowser::dataUpdated(const QString &path)
+{
+    QStandardItem *item = fromPath(path);
+    if (!item)
+        return;
+    dataUpdated(item);
+}
+
+void QDataBrowser::clear(const QString &path)
+{
+    QStandardItem *item = fromPath(path);
+
+    if (!item)
+        return;
+
+    if (item == dataModel->invisibleRootItem()) {
+        dataModel->clear();
+        for (int i = 0; i < nViews; ++i) {
+            sliceSelector[i]->clear();
+            dataView[i]->updateView();
+        }
+        return;
+    }
+
+    QModelIndex I = item->index();
+    if (!I.isValid())
+        return;
+
+    QModelIndex C = dataTree->currentIndex();
+    bool currentDeleted = isGroup(item) ? isBelow(C, I) : I == C;
+
+    dataModel->removeRow(I.row(), I.parent());
+
+    if (currentDeleted) {
+        for (int i = 0; i < nViews; ++i) {
+            sliceSelector[i]->clear();
+            dataView[i]->updateView();
+        }
+    }
 }
 
 QStandardItem *QDataBrowser::fromPath(const QString &path) const
@@ -251,7 +300,7 @@ bool QDataBrowser::isGroup(QStandardItem *i)
 {
     if (i == nullptr)
         return false;
-    return i == dataModel->invisibleRootItem() || i->data().value<AbstractDataStore *>() == nullptr;
+    return i == dataModel->invisibleRootItem() || i->data().value<DataStorePtr>().isNull();
 }
 
 QString QDataBrowser::itemPath(QStandardItem *i)
@@ -259,6 +308,33 @@ QString QDataBrowser::itemPath(QStandardItem *i)
     if (i == nullptr || i == dataModel->invisibleRootItem())
         return QString();
     return QString("%1/%2").arg(itemPath(i->parent())).arg(i->text());
+}
+
+bool QDataBrowser::dataUpdated(QStandardItem *i)
+{
+    if (isGroup(i)) {
+        for (int r = 0; r < i->rowCount(); ++r) {
+            if (dataUpdated(i->child(r)))
+                return true;
+        }
+        return false;
+    } else if (i->index() == dataTree->currentIndex()) {
+        for (int i = 0; i < nViews; ++i)
+            sliceSelector[i]->updateData();
+        return true;
+    }
+    return false;
+}
+
+bool QDataBrowser::isBelow(const QModelIndex &i, const QModelIndex &g)
+{
+    QModelIndex p = i;
+    while (p.isValid()) {
+        p = p.parent();
+        if (p == g)
+            return true;
+    }
+    return false;
 }
 
 void QDataBrowser::onLeftSplitterMoved(int pos, int index)
@@ -337,11 +413,11 @@ void QDataBrowser::onBottomPanelBtClicked(bool c)
 
 void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelIndex &deselected)
 {
-    const int dim0[nViews] = {2, 1};
+    const int dim0[nViews] = {2, 1, 2};
     QStandardItem *i = selected.isValid() ? dataModel->itemFromIndex(selected) : nullptr;
     if (i)
     {
-        AbstractDataStore *D = i->data().value<AbstractDataStore *>();
+        DataStorePtr D = i->data().value<DataStorePtr>();
         for (int i = 0; i < nViews; ++i)
         {
             sliceSelector[i]->assign(D, dim0[i]);
