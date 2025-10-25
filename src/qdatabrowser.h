@@ -20,11 +20,17 @@ class QDataSliceSelector;
 class QDataBrowser : public QSplitter
 {
     Q_OBJECT
+
+    Q_PROPERTY(QString treeTitle READ treeTitle WRITE setTreeTitle CONSTANT)
+
 public:
     explicit QDataBrowser(QWidget *parent = nullptr);
 
     // init static lib resources (icons, etc.)
     static void initResources();
+
+    const QString &treeTitle() { return treeTitle_; }
+    void setTreeTitle(const QString &t);
 
     // Insert a group node in the data model
     // below the specified location
@@ -52,19 +58,23 @@ public:
 signals:
 
 private:
+    // data tree model
+    QStandardItemModel *dataModel;
+    QString treeTitle_;
+
+    // view widgets
     static const int nViews = 3;
     QDataSliceSelector *sliceSelector[nViews];
     QAbstractDataView *dataView[nViews];
-    QStandardItemModel *dataModel;
-
-    // view widgets
     QTreeView *dataTree;
+
+    // layout widgets
     QTabWidget *viewTab;
     QSplitter *bottomSplitter;
-    QLabel *dataName;
     QStackedWidget *bottomPanel;
 
     // controls
+    QLabel *dataName;
     QToolButton *copyPathBt;
     QToolButton *btExport;
     QToolButton *leftPanelBt;

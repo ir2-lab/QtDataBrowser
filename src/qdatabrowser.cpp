@@ -22,6 +22,7 @@
 
 #include <fstream>
 
+// this must be outside any namespace
 inline void __initResource__()
 {
     Q_INIT_RESOURCE(qtdatabrowser_resources);
@@ -37,7 +38,7 @@ QDataBrowser::QDataBrowser(QWidget *parent)
 {
     /* create data model */
     dataModel = new QStandardItemModel(0, 1, this);
-    dataModel->setHeaderData(0, Qt::Horizontal, "Data Tables");
+    setTreeTitle("Data Tables");
 
     /* create left-side tree widget */
     dataTree = new QTreeView;
@@ -177,6 +178,12 @@ QDataBrowser::QDataBrowser(QWidget *parent)
     setCollapsible(1, false);
 }
 
+void QDataBrowser::setTreeTitle(const QString &t)
+{
+    treeTitle_ = t;
+    dataModel->setHeaderData(0, Qt::Horizontal, treeTitle_);
+}
+
 bool QDataBrowser::addGroup(const QString &name, const QString &location, const QString &desc)
 {
     QStandardItem *parent = fromPath(location);
@@ -243,11 +250,9 @@ void QDataBrowser::clear(const QString &path)
         return;
 
     if (item == dataModel->invisibleRootItem()) {
-        dataModel->clear();
-        for (int i = 0; i < nViews; ++i) {
-            sliceSelector[i]->clear();
-            dataView[i]->updateView();
-        }
+        dataModel->removeRows(0, dataModel->rowCount());
+        //setTreeTitle(treeTitle_);
+        onDataItemSelect(QModelIndex(), QModelIndex());
         return;
     }
 
