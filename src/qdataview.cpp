@@ -70,7 +70,7 @@ public:
             if (i < 0 || i >= rowCount())
                 return QVariant();
 
-            return (slice_->is_x_categorical(0)) ? QVariant(slice_->x_category(0)[i].c_str())
+            return (slice_->is_x_categorical(0)) ? QVariant(slice_->x_category()[i].c_str())
                                                  : QVariant(slice_->x(i));
         }
         else if (orientation == Qt::Horizontal)
@@ -78,7 +78,7 @@ public:
             if (i < 0 || i >= columnCount())
                 return QVariant();
 
-            return (slice_->is_x_categorical(1)) ? QVariant(slice_->x_category(1)[i].c_str())
+            return (slice_->is_x_categorical(1)) ? QVariant(slice_->y_category()[i].c_str())
                                                  : QVariant(slice_->x(i));
         }
         return QVariant();

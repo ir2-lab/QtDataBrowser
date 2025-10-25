@@ -38,8 +38,8 @@ public:
 
     const vec_t &x() const { return x_; }
     const vec_t &y() const { return y_; }
-    const strvec_t &x_category(size_t d) const { return x_category_; }
-    const strvec_t &y_category(size_t d) const { return y_category_; }
+    const strvec_t &x_category() const { return x_category_; }
+    const strvec_t &y_category() const { return y_category_; }
     const vec_t &data() const { return data_; }
     const vec_t &errors() const { return err_; }
     double x(int i) const { return x_[i]; }
