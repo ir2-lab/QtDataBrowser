@@ -49,6 +49,7 @@ protected:
         QLabel *label;
         QSlider *slider;
         QLineEdit *value;
+        QStringList valueLbls;
     };
     QVector<gridElement> gridElements;
     void clearCtrls();
@@ -62,6 +63,7 @@ protected:
     void disconnectCtrls();
     void blockCtrls(bool b);
     QString dimLabel(int d);
+    void setSliderLabels();
 
 protected slots:
     void onX(int new_dx);

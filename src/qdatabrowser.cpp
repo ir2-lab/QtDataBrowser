@@ -56,7 +56,7 @@ QDataBrowser::QDataBrowser(QWidget *parent)
     QWidget *rhw = new QWidget;
     QVBoxLayout *vbox = new QVBoxLayout;
     rhw->setLayout(vbox);
-    vbox->setContentsMargins(6, 6, 6, 6);
+    vbox->setContentsMargins(0, 0, 0, 0);
     // vbox->setSpacing(0);
     bottomSplitter->addWidget(rhw);
     bottomSplitter->setCollapsible(0, false);
@@ -69,7 +69,10 @@ QDataBrowser::QDataBrowser(QWidget *parent)
         tlbox->setLayout(hbox);
         hbox->setContentsMargins(0, 0, 0, 0);
 
-        dataName = new QLabel("data > data");
+        QLabel *lbl = new QLabel("Path: ");
+        hbox->addWidget(lbl);
+
+        dataName = new QLabel("");
         dataName->setStyleSheet("font-weight: bold");
         // dataName->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
         hbox->addWidget(dataName);
@@ -80,6 +83,7 @@ QDataBrowser::QDataBrowser(QWidget *parent)
         copyPathBt->setAutoRaise(true);
         connect(copyPathBt, &QToolButton::clicked, this, &QDataBrowser::onCopyPath);
         hbox->addWidget(copyPathBt);
+        copyPathBt->hide();
 
         hbox->addStretch();
 
@@ -424,6 +428,7 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
             dataView[i]->updateView();
         }
         dataName->setText(itemPath(i));
+        copyPathBt->show();
     }
     else
     {
@@ -433,6 +438,7 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
             dataView[i]->updateView();
         }
         dataName->setText(QString());
+        copyPathBt->hide();
     }
 }
 

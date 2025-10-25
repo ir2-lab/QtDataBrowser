@@ -13,10 +13,12 @@
 QDataSliceSelector::QDataSliceSelector(QWidget *parent)
     : QWidget{parent}
 {
+    //setStyleSheet("border: 1px solid black");
+
     // layout
     QVBoxLayout *vbox = new QVBoxLayout;
     setLayout(vbox);
-    vbox->setSpacing(12);
+    vbox->setContentsMargins(0, 0, 0, 0);
 
     /* top tool bar */
     {
@@ -191,7 +193,6 @@ void QDataSliceSelector::updateCtrls(updFlag f)
     auto &i0 = slice_.i0();
     auto &dim_order = slice_.dim_order();
     int d0 = slice_.ndim();
-    auto x = slice_.dataStore()->x(slice_.i0());
 
     switch (f) {
     case All:
@@ -204,20 +205,29 @@ void QDataSliceSelector::updateCtrls(updFlag f)
             e.d = dim_order[d0 + i];
             e.label->setText(dimLabel(e.d));
             size_t n = slice_.dataStore()->dim()[e.d];
-            e.slider->setRange(0, n - 1);
-            size_t page = 1;
-            size_t nticks = n;
-            while (nticks > maxTicks) {
-                page++;
-                nticks = n / page;
+            if (n > 1) {
+                e.slider->setEnabled(true);
+                e.slider->setRange(0, n - 1);
+                size_t page = 1;
+                size_t nticks = n;
+                while (nticks > maxTicks) {
+                    page++;
+                    nticks = n / page;
+                }
+                e.slider->setTickInterval(page);
+                e.slider->setPageStep(page);
+            } else {
+                e.slider->setEnabled(false);
+                e.value->clear();
             }
-            e.slider->setTickInterval(page);
-            e.slider->setPageStep(page);
         }
+        setSliderLabels();
     case SldrOnly:
-        for (auto &e : gridElements) {
-            e.slider->setValue(slice_.i0()[e.d]);
-            e.value->setText(QString("%1: %2").arg(slice_.i0()[e.d]).arg(x[e.d]));
+        for (int i = 0; i < gridElements.size(); ++i) {
+            auto &e = gridElements[i];
+            size_t k = slice_.i0()[e.d];
+            e.slider->setValue(k);
+            e.value->setText(e.valueLbls.at(k));
         }
     default:
         break;
@@ -271,6 +281,32 @@ QString QDataSliceSelector::dimLabel(int d)
     if (!D)
         return QString();
     return QString("%1 [n=%2]").arg(D->dim_name(d).c_str()).arg(D->dim()[d]);
+}
+
+void QDataSliceSelector::setSliderLabels()
+{
+    DataStorePtr D = slice_.dataStore();
+    if (!D)
+        return;
+
+    for (int i = 0; i < gridElements.size(); ++i) {
+        auto &e = gridElements[i];
+        if (e.slider->isEnabled()) {
+            e.valueLbls.clear();
+            size_t n = D->dim()[e.d];
+            if (D->is_x_categorical(e.d)) {
+                AbstractDataStore::strvec_t x(n);
+                D->get_x_categorical(e.d, x);
+                for (size_t i = 0; i < n; ++i)
+                    e.valueLbls.push_back(QString("%1: %2").arg(i).arg(x[i].c_str()));
+            } else {
+                AbstractDataStore::vec_t x(n);
+                D->get_x(e.d, x);
+                for (size_t i = 0; i < n; ++i)
+                    e.valueLbls.push_back(QString("%1: %2").arg(i).arg(x[i]));
+            }
+        }
+    }
 }
 
 void QDataSliceSelector::onX(int new_dx)

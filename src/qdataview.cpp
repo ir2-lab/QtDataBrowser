@@ -69,13 +69,17 @@ public:
         {
             if (i < 0 || i >= rowCount())
                 return QVariant();
-            return slice_->x(i);
+
+            return (slice_->is_x_categorical(0)) ? QVariant(slice_->x_category(0)[i].c_str())
+                                                 : QVariant(slice_->x(i));
         }
         else if (orientation == Qt::Horizontal)
         {
             if (i < 0 || i >= columnCount())
                 return QVariant();
-            return slice_->y(i);
+
+            return (slice_->is_x_categorical(1)) ? QVariant(slice_->x_category(1)[i].c_str())
+                                                 : QVariant(slice_->x(i));
         }
         return QVariant();
     }
@@ -116,8 +120,6 @@ QPlotDataView::QPlotDataView(QWidget *parent)
     : QAbstractDataView(parent)
 {
     linePlot = new QMatPlotWidget;
-    linePlot->setXlabel("X");
-    linePlot->setYlabel("Y");
     linePlot->setStyleSheet("background: white");
 
     /* create layout */
@@ -140,6 +142,9 @@ void QPlotDataView::exportImage() const
 void QPlotDataView::updateView_()
 {
     linePlot->clear();
+    linePlot->setXlabel("");
+    linePlot->setYlabel("");
+    linePlot->setTitle("");
 
     if (!slice_ || slice_->empty())
     {
@@ -147,6 +152,10 @@ void QPlotDataView::updateView_()
     }
 
     linePlot->plot(slice_->x(), slice_->data());
+    linePlot->setXlabel(slice_->dim_name(0).c_str());
+    if (slice_->ndim() > 1)
+        linePlot->setYlabel(slice_->dim_name(1).c_str());
+    linePlot->setTitle(slice_->description().c_str());
 }
 
 /************ QHeatMapDataView  *****************/
@@ -155,8 +164,6 @@ QHeatMapDataView::QHeatMapDataView(QWidget *parent)
     : QAbstractDataView(parent)
 {
     heatMap = new QMatPlotWidget;
-    heatMap->setXlabel("X");
-    heatMap->setYlabel("Y");
     heatMap->setStyleSheet("background: white");
 
     /* create layout */
@@ -179,6 +186,9 @@ void QHeatMapDataView::exportImage() const
 void QHeatMapDataView::updateView_()
 {
     heatMap->clear();
+    heatMap->setXlabel("");
+    heatMap->setYlabel("");
+    heatMap->setTitle("");
 
     if (!slice_ || slice_->empty()) {
         return;
@@ -187,14 +197,9 @@ void QHeatMapDataView::updateView_()
     int ndim = slice_->ndim();
     auto dim = slice_->dim();
 
-    if (ndim == 2) {
-        //DataSlice::vec_t x{0.0, 1.0 * dim[0]};
-        //DataSlice::vec_t y{0.0, 1.0 * dim[1]};
-        heatMap->imagesc(slice_->data(), dim[0]);
-
-    } else {
-        //DataSlice::vec_t x{0.0, 1.0 * dim[0]};
-        //DataSlice::vec_t y{0.0, 1.0};
-        heatMap->imagesc(slice_->data(), dim[0]);
-    }
+    heatMap->imagesc(slice_->data(), dim[0]);
+    heatMap->setXlabel(slice_->dim_name(0).c_str());
+    if (ndim > 1)
+        heatMap->setYlabel(slice_->dim_name(1).c_str());
+    heatMap->setTitle(slice_->description().c_str());
 }

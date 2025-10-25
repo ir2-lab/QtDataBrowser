@@ -4,6 +4,7 @@
 #include "abstractdatastore.h"
 
 #include <QSharedPointer>
+#include <cstring>
 
 typedef QSharedPointer<AbstractDataStore> DataStorePtr;
 
@@ -14,6 +15,22 @@ public:
 
     const DataStorePtr dataStore() const { return D_; }
 
+    bool hasErrors() const override { return !err_.empty(); }
+    bool is_x_categorical(size_t d) const override
+    {
+        if (d == 0)
+            return !x_category_.empty();
+        if (d == 1)
+            return !y_category_.empty();
+        return false;
+    }
+
+    size_t get_x_categorical(size_t d, strvec_t &categories) const override
+    {
+        categories = (d == 0) ? x_category_ : y_category_;
+        return categories.size();
+    }
+
     const dim_t &i0() const { return i0_; }
     const dim_t &dim_order() const { return dim_order_; }
     const int dx() const { return dim_idx_[0]; }
@@ -21,7 +38,10 @@ public:
 
     const vec_t &x() const { return x_; }
     const vec_t &y() const { return y_; }
+    const strvec_t &x_category(size_t d) const { return x_category_; }
+    const strvec_t &y_category(size_t d) const { return y_category_; }
     const vec_t &data() const { return data_; }
+    const vec_t &errors() const { return err_; }
     double x(int i) const { return x_[i]; }
     double y(int i) const { return y_[i]; }
     double operator()(size_t i) const { return data_[i]; }
@@ -37,16 +57,26 @@ public:
     void export_csv(std::ostream &os);
 
 protected:
-    dim_t dim_idx_;
-    dim_t dim_order_;
-    dim_t i0_;
-    vec_t data_, x_, y_;
+    dim_t dim_idx_;                    // slice x & y dimensions
+    dim_t dim_order_;                  // order of D_ dimensions
+    dim_t i0_;                         // offset into D_
+    vec_t data_, err_, x_, y_;         // slice data
+    strvec_t x_category_, y_category_; // category data for x & y
     QWeakPointer<AbstractDataStore> D_;
 
-    void assign_(const dim_t &new_i0);
+    size_t _get_(size_t d, const dim_t &i0, const vec_t &yy, size_t n, double *v) const;
 
-    size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const override { return 0; }
-    size_t get_x(size_t d, size_t n, double *v) const override;
+    size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const override
+    {
+        return _get_(d, i0, data_, n, v);
+    }
+    size_t get_dy(size_t d, const dim_t &i0, size_t n, double *v) const override
+    {
+        return _get_(d, i0, err_, n, v);
+    }
+    virtual size_t get_x(size_t d, size_t n, double *v) const override;
+
+    void assign_(const dim_t &new_i0);
 };
 
 Q_DECLARE_METATYPE(DataStorePtr)
