@@ -1,5 +1,6 @@
 #include "qdataview.h"
 
+#include <QLabel>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -98,9 +99,14 @@ QTabularDataView::QTabularDataView(QWidget *parent)
     view_ = new QTableView;
     view_->setModel(model_);
 
+    title_ = new QLabel;
+    title_->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    title_->setStyleSheet("font-weight: bold");
+
     /* create layout */
     QVBoxLayout *vbox = new QVBoxLayout;
     setLayout(vbox);
+    vbox->addWidget(title_);
     vbox->addWidget(view_);
 }
 
@@ -112,6 +118,10 @@ QIcon QTabularDataView::icon() const
 void QTabularDataView::updateView_()
 {
     model_->setData(slice_);
+    if (!slice_->description().empty())
+        title_->setText(slice_->description().c_str());
+    else
+        title_->setText(slice_->name().c_str());
 }
 
 /************ QPlotDataView  *****************/

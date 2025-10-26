@@ -4,6 +4,7 @@
 #include <QWidget>
 
 class QTableView;
+class QLabel;
 
 class DataSlice;
 class QDataTableModel;
@@ -40,7 +41,7 @@ class QTabularDataView : public QAbstractDataView
 public:
     explicit QTabularDataView(QWidget *parent = nullptr);
 
-    QWidget *view() override { return (QWidget *) view_; }
+    QWidget *view() override { return (QWidget *)view_; }
     QIcon icon() const override;
 
 protected:
@@ -48,6 +49,7 @@ protected:
 
     // view widgets
     QTableView *view_;
+    QLabel *title_;
 
     virtual void updateView_() override;
 };
@@ -57,7 +59,7 @@ class QPlotDataView : public QAbstractDataView
 public:
     explicit QPlotDataView(QWidget *parent = nullptr);
 
-    QWidget *view() override { return (QWidget *) linePlot; }
+    QWidget *view() override { return (QWidget *)linePlot; }
     QIcon icon() const override;
 
     bool canExportImage() const override { return true; }
@@ -75,7 +77,7 @@ class QHeatMapDataView : public QAbstractDataView
 public:
     explicit QHeatMapDataView(QWidget *parent = nullptr);
 
-    QWidget *view() override { return (QWidget *) heatMap; }
+    QWidget *view() override { return (QWidget *)heatMap; }
     QIcon icon() const override;
 
     bool canExportImage() const override { return true; }

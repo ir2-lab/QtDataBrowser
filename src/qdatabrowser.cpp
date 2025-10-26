@@ -135,7 +135,7 @@ QDataBrowser::QDataBrowser(QWidget *parent)
 
     /* create dataView panel */
     viewTab = new QTabWidget;
-    viewTab->setStyleSheet("background: white");
+    //viewTab->setStyleSheet("background: white");
     dataView[0] = new QTabularDataView;
     viewTab->addTab(dataView[0], dataView[0]->icon(), "Table");
     dataView[1] = new QPlotDataView;
@@ -210,7 +210,8 @@ bool QDataBrowser::addData(AbstractDataStore *data, const QString &location)
 
     QString name(data->name().c_str());
     QStandardItem *node = findChild(name, parent);
-    if (!node) {
+    if (!node)
+    {
         node = new QStandardItem(QIcon(":/qdatabrowser/lucide/layers.svg"), name);
         parent->appendRow(node);
     }
@@ -227,11 +228,13 @@ bool QDataBrowser::selectItem(const QString &path)
     QStandardItem *item = fromPath(path);
     if (!item)
         return false;
+
     QModelIndex i = item->index();
-    bool ret = i.isValid();
-    if (ret)
-        dataTree->selectionModel()->setCurrentIndex(i, QItemSelectionModel::NoUpdate);
-    return ret;
+    if (!i.isValid())
+        return false;
+
+    dataTree->setCurrentIndex(i);
+    return true;
 }
 
 void QDataBrowser::dataUpdated(const QString &path)
@@ -249,9 +252,10 @@ void QDataBrowser::clear(const QString &path)
     if (!item)
         return;
 
-    if (item == dataModel->invisibleRootItem()) {
+    if (item == dataModel->invisibleRootItem())
+    {
         dataModel->removeRows(0, dataModel->rowCount());
-        //setTreeTitle(treeTitle_);
+        // setTreeTitle(treeTitle_);
         onDataItemSelect(QModelIndex(), QModelIndex());
         return;
     }
@@ -265,8 +269,10 @@ void QDataBrowser::clear(const QString &path)
 
     dataModel->removeRow(I.row(), I.parent());
 
-    if (currentDeleted) {
-        for (int i = 0; i < nViews; ++i) {
+    if (currentDeleted)
+    {
+        for (int i = 0; i < nViews; ++i)
+        {
             sliceSelector[i]->clear();
             dataView[i]->updateView();
         }
@@ -321,13 +327,17 @@ QString QDataBrowser::itemPath(QStandardItem *i)
 
 bool QDataBrowser::dataUpdated(QStandardItem *i)
 {
-    if (isGroup(i)) {
-        for (int r = 0; r < i->rowCount(); ++r) {
+    if (isGroup(i))
+    {
+        for (int r = 0; r < i->rowCount(); ++r)
+        {
             if (dataUpdated(i->child(r)))
                 return true;
         }
         return false;
-    } else if (i->index() == dataTree->currentIndex()) {
+    }
+    else if (i->index() == dataTree->currentIndex())
+    {
         for (int i = 0; i < nViews; ++i)
             sliceSelector[i]->updateData();
         return true;
@@ -338,7 +348,8 @@ bool QDataBrowser::dataUpdated(QStandardItem *i)
 bool QDataBrowser::isBelow(const QModelIndex &i, const QModelIndex &g)
 {
     QModelIndex p = i;
-    while (p.isValid()) {
+    while (p.isValid())
+    {
         p = p.parent();
         if (p == g)
             return true;
@@ -480,7 +491,8 @@ void QDataBrowser::onExportCSV()
     // csv export
     std::ofstream of(fname.toStdString());
 
-    if (!of.is_open()) {
+    if (!of.is_open())
+    {
         QMessageBox::critical(window(),
                               "Export data to CSV ...",
                               QString("Error opening file:\n%1").arg(fname));
