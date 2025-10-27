@@ -214,8 +214,7 @@ void QDataSliceSelector::updateCtrls(updFlag f)
             e.d = dim_order[d0 + i];
             e.label->setText(dimLabel(e.d));
             size_t n = slice_.dataStore()->dim()[e.d];
-            if (n > 1)
-            {
+            if (n > 1) {
                 e.slider->setEnabled(true);
                 e.slider->setRange(0, n - 1);
                 size_t page = 1;
@@ -225,13 +224,13 @@ void QDataSliceSelector::updateCtrls(updFlag f)
                     page++;
                     nticks = n / page;
                 }
+                e.slider->setTickPosition(QSlider::TicksBothSides);
                 e.slider->setTickInterval(page);
                 e.slider->setPageStep(page);
-            }
-            else
-            {
+            } else {
+                e.slider->setRange(0, 0);
+                e.slider->setTickPosition(QSlider::NoTicks);
                 e.slider->setEnabled(false);
-                e.value->clear();
             }
         }
         setSliderLabels();
@@ -244,6 +243,8 @@ void QDataSliceSelector::updateCtrls(updFlag f)
                 size_t k = slice_.i0()[e.d];
                 e.slider->setValue(k);
                 e.value->setText(e.valueLbls.at(k));
+            } else {
+                e.value->setText(e.valueLbls.at(0));
             }
         }
     default:
@@ -311,24 +312,18 @@ void QDataSliceSelector::setSliderLabels()
     for (int i = 0; i < gridElements.size(); ++i)
     {
         auto &e = gridElements[i];
-        if (e.slider->isEnabled())
-        {
-            e.valueLbls.clear();
-            size_t n = D->dim()[e.d];
-            if (D->is_x_categorical(e.d))
-            {
-                AbstractDataStore::strvec_t x(n);
-                D->get_x_categorical(e.d, x);
-                for (size_t i = 0; i < n; ++i)
-                    e.valueLbls.push_back(QString("%1: %2").arg(i).arg(x[i].c_str()));
-            }
-            else
-            {
-                AbstractDataStore::vec_t x(n);
-                D->get_x(e.d, x);
-                for (size_t i = 0; i < n; ++i)
-                    e.valueLbls.push_back(QString("%1: %2").arg(i).arg(x[i]));
-            }
+        e.valueLbls.clear();
+        size_t n = D->dim()[e.d];
+        if (D->is_x_categorical(e.d)) {
+            AbstractDataStore::strvec_t x(n);
+            D->get_x_categorical(e.d, x);
+            for (size_t i = 0; i < n; ++i)
+                e.valueLbls.push_back(QString("%1: %2").arg(i).arg(x[i].c_str()));
+        } else {
+            AbstractDataStore::vec_t x(n);
+            D->get_x(e.d, x);
+            for (size_t i = 0; i < n; ++i)
+                e.valueLbls.push_back(QString("%1: %2").arg(i).arg(x[i]));
         }
     }
 }
