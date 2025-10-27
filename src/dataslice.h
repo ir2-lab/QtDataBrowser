@@ -15,6 +15,7 @@ public:
 
     const DataStorePtr dataStore() const { return D_; }
 
+    bool is_numeric() const override { return !data_.empty(); }
     bool hasErrors() const override { return !err_.empty(); }
     bool is_x_categorical(size_t d) const override
     {
@@ -33,8 +34,8 @@ public:
 
     const dim_t &i0() const { return i0_; }
     const dim_t &dim_order() const { return dim_order_; }
-    const int dx() const { return dim_idx_[0]; }
-    const int dy() const { return dim_idx_[1]; }
+    int dx() const { return dim_idx_[0]; }
+    int dy() const { return dim_idx_[1]; }
 
     const vec_t &x() const { return x_; }
     const vec_t &y() const { return y_; }
@@ -46,6 +47,7 @@ public:
     double y(int i) const { return y_[i]; }
     double operator()(size_t i) const { return data_[i]; }
     double operator()(size_t i, size_t j) const { return data_[i + j * dim_[0]]; }
+    const std::string &text_data(size_t i, size_t j) const { return txtdata_[i + j * dim_[0]]; }
 
     void clear();
     void assign(const DataStorePtr d, size_t dx, const dim_t &i0);
@@ -61,6 +63,7 @@ protected:
     dim_t dim_order_;                  // order of D_ dimensions
     dim_t i0_;                         // offset into D_
     vec_t data_, err_, x_, y_;         // slice data
+    strvec_t txtdata_;                 // text data
     strvec_t x_category_, y_category_; // category data for x & y
     QWeakPointer<AbstractDataStore> D_;
 

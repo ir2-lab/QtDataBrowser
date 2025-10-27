@@ -1,5 +1,6 @@
 #include "dataslice.h"
 
+#include <iomanip>
 #include <iostream>
 
 void DataSlice::clear()
@@ -11,6 +12,7 @@ void DataSlice::clear()
     err_.clear();
     x_.clear();
     y_.clear();
+    txtdata_.clear();
     x_category_.clear();
     y_category_.clear();
     dim_.clear();
@@ -28,9 +30,13 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, const dim_t &i0)
     dim_idx_ = {dx, 0UL - 1};
     dim_ = {d->dim()[dx]};
     size_t sz = dim_[0];
-    data_.resize(sz);
-    if (d->hasErrors())
-        err_.resize(sz);
+    if (d->is_numeric()) {
+        data_.resize(sz);
+        if (d->hasErrors())
+            err_.resize(sz);
+    } else {
+        txtdata_.resize(sz);
+    }
     x_.resize(sz);
     d->get_x(dx, x_);
     if (d->is_x_categorical(dx))
@@ -67,9 +73,13 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, size_t dy, const dim_t &
 
     dim_ = {d->dim()[dx], d->dim()[dy]};
     size_t sz = dim_[0] * dim_[1];
-    data_.resize(sz);
-    if (d->hasErrors())
-        err_.resize(sz);
+    if (d->is_numeric()) {
+        data_.resize(sz);
+        if (d->hasErrors())
+            err_.resize(sz);
+    } else {
+        txtdata_.resize(sz);
+    }
     x_.resize(dim_[0]);
     d->get_x(dx, x_);
     if (d->is_x_categorical(dx))
@@ -154,6 +164,27 @@ void DataSlice::export_csv(std::ostream &os)
     if (empty())
         return;
 
+    if (!is_numeric()) {
+        if (ndim() == 1) {
+            os << "x,y" << std::endl;
+            for (size_t i = 0; i < dim_[0]; ++i) {
+                if (!x_category_.empty())
+                    os << std::quoted(x_category_[i]) << ", ";
+                else
+                    os << x_[i] << ", ";
+                os << std::quoted(txtdata_[i]) << std::endl;
+            }
+        } else {
+            for (size_t i = 0; i < dim_[0]; ++i) {
+                os << std::quoted(txtdata_[i]);
+                for (size_t j = 1; j < dim_[1]; ++j) {
+                    os << ", " << std::quoted(txtdata_[i + j * dim_[0]]);
+                }
+                os << std::endl;
+            }
+        }
+    }
+
     if (hasErrors())
     {
         if (ndim() == 1)
@@ -162,7 +193,7 @@ void DataSlice::export_csv(std::ostream &os)
             for (size_t i = 0; i < dim_[0]; ++i)
             {
                 if (!x_category_.empty())
-                    os << x_category_[i] << ", ";
+                    os << std::quoted(x_category_[i]) << ", ";
                 else
                     os << x_[i] << ", ";
                 os << data_[i] << ", ";
@@ -191,7 +222,7 @@ void DataSlice::export_csv(std::ostream &os)
             for (size_t i = 0; i < dim_[0]; ++i)
             {
                 if (!x_category_.empty())
-                    os << x_category_[i] << ", ";
+                    os << std::quoted(x_category_[i]) << ", ";
                 else
                     os << x_[i] << ", ";
                 os << data_[i] << std::endl;
@@ -239,8 +270,31 @@ void DataSlice::assign_(const dim_t &new_i0)
         clear();
         return;
     }
-    bool withErrors = d->hasErrors();
+
     i0_ = new_i0;
+
+    if (!d->is_numeric()) {
+        if (ndim() == 1) {
+            i0_[dx()] = 0;
+            d->get_y_text(dx(), i0_, txtdata_);
+        } else {
+            i0_[dx()] = 0;
+            i0_[dy()] = 0;
+            dim_t j1(i0_);
+            // copy row-by-row [column-major storage]
+            int k = 0;
+            strvec_t buff(dim_[0]);
+            for (size_t i = 0; i < dim_[1]; ++i) {
+                j1[dy()] = i;
+                d->get_y_text(dx(), j1, buff);
+                for (auto it = buff.begin(); it != buff.end(); ++it, ++k)
+                    txtdata_[k] = *it;
+            }
+        }
+        return;
+    }
+
+    bool withErrors = d->hasErrors();
     if (ndim() == 1)
     {
         i0_[dx()] = 0;

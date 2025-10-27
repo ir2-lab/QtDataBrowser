@@ -2,6 +2,8 @@
 
 #include <QLabel>
 #include <QMenu>
+#include <QPlainTextEdit>
+#include <QStackedWidget>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -59,7 +61,9 @@ public:
     {
         if (!index.isValid() || role != Qt::DisplayRole || slice_ == nullptr || slice_->empty())
             return QVariant();
-        return (*slice_)(index.row(), index.column());
+        return slice_->is_numeric()
+                   ? QVariant((*slice_)(index.row(), index.column()))
+                   : QVariant(slice_->text_data(index.row(), index.column()).c_str());
     }
     QVariant headerData(int i,
                         Qt::Orientation orientation,
@@ -104,11 +108,19 @@ QTabularDataView::QTabularDataView(QWidget *parent)
     title_->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     title_->setStyleSheet("font-weight: bold");
 
+    scalarView_ = new QPlainTextEdit;
+    scalarView_->setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
+    scalarView_->setReadOnly(true);
+
+    stack_ = new QStackedWidget;
+    stack_->addWidget(scalarView_);
+    stack_->addWidget(view_);
+
     /* create layout */
     QVBoxLayout *vbox = new QVBoxLayout;
     setLayout(vbox);
     vbox->addWidget(title_);
-    vbox->addWidget(view_);
+    vbox->addWidget(stack_);
 }
 
 QIcon QTabularDataView::icon() const
@@ -123,6 +135,16 @@ void QTabularDataView::updateView_()
         title_->setText(slice_->description().c_str());
     else
         title_->setText(slice_->name().c_str());
+
+    if (slice_->is_scalar()) {
+        if (slice_->is_numeric())
+            scalarView_->setPlainText(QString::number((*slice_)(0, 0)));
+        else
+            scalarView_->setPlainText(slice_->text_data(0, 0).c_str());
+        stack_->setCurrentIndex(0);
+    } else {
+        stack_->setCurrentIndex(1);
+    }
 }
 
 /************ QPlotDataView  *****************/

@@ -462,24 +462,27 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
 {
     const int dim0[nViews] = {2, 1, 2};
     QStandardItem *i = selected.isValid() ? dataModel->itemFromIndex(selected) : nullptr;
-    if (i)
-    {
+    for (int v = 0; v < nViews; ++v) {
+        sliceSelector[v]->clear();
+        dataView[v]->updateView();
+    }
+    if (i) {
         DataStorePtr D = i->data().value<DataStorePtr>();
-        for (int i = 0; i < nViews; ++i)
-        {
-            sliceSelector[i]->assign(D, dim0[i]);
-            dataView[i]->updateView();
+        if (D) {
+            if (D->is_numeric()) {
+                for (int i = 0; i < nViews; ++i) {
+                    sliceSelector[i]->assign(D, dim0[i]);
+                    dataView[i]->updateView();
+                }
+            } else {
+                sliceSelector[0]->assign(D, dim0[0]);
+                dataView[0]->updateView();
+                setActiveView(QDataBrowser::Table);
+            }
         }
         dataName->setText(itemPath(i));
         copyPathBt->show();
-    }
-    else
-    {
-        for (int i = 0; i < nViews; ++i)
-        {
-            sliceSelector[i]->clear();
-            dataView[i]->updateView();
-        }
+    } else {
         dataName->setText(QString());
         copyPathBt->hide();
     }
@@ -510,7 +513,7 @@ void QDataBrowser::onExportCSV()
 
     QString fname = QFileDialog::getSaveFileName(this,
                                                  tr("Export data to CSV ..."),
-                                                 "opentrim_export.csv",
+                                                 "export.csv",
                                                  tr("CSV files [*.csv](*.csv);; All files (*.*)"));
     if (fname.isNull())
         return;

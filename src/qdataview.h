@@ -9,6 +9,8 @@ class QTableView;
 class QLabel;
 class QMenu;
 class QActionGroup;
+class QStackedWidget;
+class QPlainTextEdit;
 
 class DataSlice;
 class QDataTableModel;
@@ -55,6 +57,8 @@ protected:
     // view widgets
     QTableView *view_;
     QLabel *title_;
+    QStackedWidget *stack_;
+    QPlainTextEdit *scalarView_;
 
     virtual void updateView_() override;
 };

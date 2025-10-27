@@ -38,12 +38,14 @@ public:
             n *= m;
         return n;
     }
+    bool is_scalar() const { return size() == 1; }
     bool empty() const { return size() == 0; }
     const std::string &name() const { return name_; }
     const std::string &description() const { return desc_; }
     const std::string &dim_name(size_t d) const { return dim_name_[d]; }
     const std::string &dim_desc(size_t d) const { return dim_desc_[d]; }
 
+    virtual bool is_numeric() const { return true; }
     virtual bool hasErrors() const { return false; }
     virtual bool is_x_categorical(size_t d) const { return false; }
 
@@ -51,6 +53,9 @@ public:
     {
         return get_y(d, i0, y.size(), y.data());
     }
+
+    virtual size_t get_y_text(size_t d, const dim_t &i0, strvec_t &y) const { return 0; }
+
     size_t get_dy(size_t d, const dim_t &i0, vec_t &y) const
     {
         return get_dy(d, i0, y.size(), y.data());
@@ -65,7 +70,7 @@ protected:
     std::vector<std::string> dim_name_;
     std::vector<std::string> dim_desc_;
 
-    virtual size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const = 0;
+    virtual size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const { return 0; }
     virtual size_t get_dy(size_t d, const dim_t &i0, size_t n, double *v) const { return 0; }
     virtual size_t get_x(size_t d, size_t n, double *v) const;
 
