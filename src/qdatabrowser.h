@@ -24,6 +24,13 @@ class QDataBrowser : public QSplitter
     Q_PROPERTY(QString treeTitle READ treeTitle WRITE setTreeTitle CONSTANT)
 
 public:
+    enum PlotType { Line, Points, LineAndPoints, Stairs, ErrorBar };
+    enum ViewType { Table, Plot, HeatMap };
+
+    Q_ENUM(PlotType)
+    Q_ENUM(ViewType)
+
+public:
     explicit QDataBrowser(QWidget *parent = nullptr);
 
     // init static lib resources (icons, etc.)
@@ -55,6 +62,13 @@ public:
     // remove the data node at path and its child nodes
     void clear(const QString &path = "/");
 
+    QDataBrowser::PlotType plotType() const;
+    QDataBrowser::ViewType activeView() const;
+
+public slots:
+    void setPlotType(QDataBrowser::PlotType t);
+    void setActiveView(QDataBrowser::ViewType t);
+
 signals:
 
 private:
@@ -76,6 +90,7 @@ private:
     // controls
     QLabel *dataName;
     QToolButton *copyPathBt;
+    QToolButton *optionsBt;
     QToolButton *btExport;
     QToolButton *leftPanelBt;
     int lastLeftPanelPos;

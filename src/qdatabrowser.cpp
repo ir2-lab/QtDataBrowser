@@ -88,9 +88,16 @@ QDataBrowser::QDataBrowser(QWidget *parent)
 
         hbox->addStretch();
 
+        optionsBt = new QToolButton;
+        optionsBt->setIcon(QIcon(":/qdatabrowser/lucide/settings-2.svg"));
+        optionsBt->setPopupMode(QToolButton::InstantPopup);
+        optionsBt->setToolTip("View options menu");
+        hbox->addWidget(optionsBt);
+
         btExport = new QToolButton;
         btExport->setIcon(QIcon(":/qdatabrowser/lucide/download.svg"));
         btExport->setText("Export");
+        btExport->setToolTip("Export data/view");
         btExport->setPopupMode(QToolButton::InstantPopup);
         btExport->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         {
@@ -277,6 +284,26 @@ void QDataBrowser::clear(const QString &path)
             dataView[i]->updateView();
         }
     }
+}
+
+QDataBrowser::PlotType QDataBrowser::plotType() const
+{
+    return ((QPlotDataView *) dataView[1])->plotType();
+}
+
+QDataBrowser::ViewType QDataBrowser::activeView() const
+{
+    return QDataBrowser::ViewType(viewTab->currentIndex());
+}
+
+void QDataBrowser::setPlotType(PlotType t)
+{
+    ((QPlotDataView *) dataView[1])->setPlotType(t);
+}
+
+void QDataBrowser::setActiveView(ViewType t)
+{
+    viewTab->setCurrentIndex(t);
 }
 
 QStandardItem *QDataBrowser::fromPath(const QString &path) const
@@ -515,6 +542,7 @@ void QDataBrowser::onCurrentViewChanged(int i)
     bool ret = !sliceSelector[i]->slice()->empty();
     actExportCSV->setEnabled(ret);
     actExportImg->setEnabled(ret && dataView[i]->canExportImage());
+    optionsBt->setMenu(dataView[i]->optionsMenu());
 }
 
 void QDataBrowser::onViewUpdated()

@@ -64,8 +64,10 @@ public:
     random3d()
         : AbstractDataStore("random3d", {L, M, N})
         , y(new vec_t(L * M * N))
+        , dy(new vec_t(L * M * N))
     {
         randomize(y.get());
+        randomize(dy.get(), 0.1);
         desc_ = "Random data array [10x3x100]";
         dim_name_[0] = "A";
         dim_name_[1] = "Type";
@@ -75,16 +77,17 @@ public:
         dim_desc_[2] = "Many random numbers";
     }
 
-    static void randomize(vec_t *y)
+    static void randomize(vec_t *y, double s = 1.0)
     {
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution<> u(0.0, 1.0);
+        std::uniform_real_distribution<> u(0.0, s);
         for (int i = 0; i < L * M * N; ++i) {
             (*y)[i] = u(gen);
         }
     }
 
+    bool hasErrors() const override { return true; }
     bool is_x_categorical(size_t d) const override { return d == 1; }
     size_t get_x_categorical(size_t d, strvec_t &categories) const override
     {
@@ -100,8 +103,9 @@ public:
 
 protected:
     std::shared_ptr<vec_t> y;
+    std::shared_ptr<vec_t> dy;
 
-    size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const override
+    size_t _get_(size_t d, const dim_t &i0, const vec_t *y, size_t n, double *v) const
     {
         dim_t i(i0);
         size_t k0 = idx(i);
@@ -121,6 +125,14 @@ protected:
             std::copy(p, p + m, v);
         }
         return 0;
+    }
+    size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const override
+    {
+        return _get_(d, i0, y.get(), n, v);
+    }
+    size_t get_dy(size_t d, const dim_t &i0, size_t n, double *v) const override
+    {
+        return _get_(d, i0, dy.get(), n, v);
     }
 };
 
@@ -215,6 +227,10 @@ int main(int argc, char *argv[])
     w->addGroup("3D", "/RandomData");
     w->addData(r3d, "/RandomData/3D");
     w->addData(new wave1d(), "RandomData");
+
+    w->selectItem("/RandomData/3D/random3d");
+    w->setActiveView(QDataBrowser::Plot);
+    w->setPlotType(QDataBrowser::ErrorBar);
 
     MyTimer timer(w, y);
     timer.start(1000);

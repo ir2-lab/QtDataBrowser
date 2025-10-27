@@ -17,5 +17,6 @@
         <file>qdatabrowser/lucide/sheet.svg</file>
         <file>qdatabrowser/lucide/chart-spline.svg</file>
         <file>qdatabrowser/lucide/download.svg</file>
+        <file>qdatabrowser/lucide/settings-2.svg</file>
     </qresource>
 </RCC>
