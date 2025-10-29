@@ -27,8 +27,8 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, const dim_t &i0)
 {
     clear();
     D_ = d;
-    dim_idx_ = {dx, 0UL - 1};
-    dim_ = {d->dim()[dx]};
+    dim_idx_ = { dx, 0UL - 1 };
+    dim_ = { d->dim()[dx] };
     size_t sz = dim_[0];
     if (d->is_numeric()) {
         data_.resize(sz);
@@ -39,8 +39,7 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, const dim_t &i0)
     }
     x_.resize(sz);
     d->get_x(dx, x_);
-    if (d->is_x_categorical(dx))
-    {
+    if (d->is_x_categorical(dx)) {
         x_category_.resize(sz);
         d->get_x_categorical(dx, x_category_);
     }
@@ -58,8 +57,7 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, const dim_t &i0)
     // build dim order
     dim_order_.clear();
     dim_order_.push_back(dx);
-    for (int i = 0; i < d->dim_.size(); ++i)
-    {
+    for (int i = 0; i < d->dim_.size(); ++i) {
         if (i != dx)
             dim_order_.push_back(i);
     }
@@ -69,9 +67,9 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, size_t dy, const dim_t &
 {
     clear();
     D_ = d;
-    dim_idx_ = {dx, dy};
+    dim_idx_ = { dx, dy };
 
-    dim_ = {d->dim()[dx], d->dim()[dy]};
+    dim_ = { d->dim()[dx], d->dim()[dy] };
     size_t sz = dim_[0] * dim_[1];
     if (d->is_numeric()) {
         data_.resize(sz);
@@ -82,15 +80,13 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, size_t dy, const dim_t &
     }
     x_.resize(dim_[0]);
     d->get_x(dx, x_);
-    if (d->is_x_categorical(dx))
-    {
+    if (d->is_x_categorical(dx)) {
         x_category_.resize(dim_[0]);
         d->get_x_categorical(dx, x_category_);
     }
     y_.resize(dim_[1]);
     d->get_x(dy, y_);
-    if (d->is_x_categorical(dy))
-    {
+    if (d->is_x_categorical(dy)) {
         y_category_.resize(dim_[1]);
         d->get_x_categorical(dy, y_category_);
     }
@@ -109,8 +105,7 @@ void DataSlice::assign(const DataStorePtr d, size_t dx, size_t dy, const dim_t &
     dim_order_.clear();
     dim_order_.push_back(dx);
     dim_order_.push_back(dy);
-    for (int i = 0; i < d->dim_.size(); ++i)
-    {
+    for (int i = 0; i < d->dim_.size(); ++i) {
         if (i != dx && i != dy)
             dim_order_.push_back(i);
     }
@@ -124,8 +119,8 @@ void DataSlice::assign(const DataStorePtr d, size_t dims)
         return;
     if (dims < 1 || dims > 2)
         dims = 2;
-    dims = std::min(dims, std::min(d->ndim(), 2UL));
-    dims = std::max(dims, 1UL);
+    dims = std::min(dims, std::min(d->ndim(), size_t(2)));
+    dims = std::max(dims, size_t(1));
 
     // get dimensions
     dim_t dim = d->dim();
@@ -135,8 +130,7 @@ void DataSlice::assign(const DataStorePtr d, size_t dims)
     auto it = find_max(dim);
     size_t dx = it - dim.begin();
 
-    if (dims == 1)
-    {
+    if (dims == 1) {
         assign(d, dx, i0);
         return;
     }
@@ -185,13 +179,10 @@ void DataSlice::export_csv(std::ostream &os)
         }
     }
 
-    if (hasErrors())
-    {
-        if (ndim() == 1)
-        {
+    if (hasErrors()) {
+        if (ndim() == 1) {
             os << "x,y,dy" << std::endl;
-            for (size_t i = 0; i < dim_[0]; ++i)
-            {
+            for (size_t i = 0; i < dim_[0]; ++i) {
                 if (!x_category_.empty())
                     os << std::quoted(x_category_[i]) << ", ";
                 else
@@ -199,42 +190,30 @@ void DataSlice::export_csv(std::ostream &os)
                 os << data_[i] << ", ";
                 os << err_[i] << std::endl;
             }
-        }
-        else
-        {
-            for (size_t i = 0; i < dim_[0]; ++i)
-            {
+        } else {
+            for (size_t i = 0; i < dim_[0]; ++i) {
                 os << data_[i] << ", " << err_[i];
-                for (size_t j = 1; j < dim_[1]; ++j)
-                {
+                for (size_t j = 1; j < dim_[1]; ++j) {
                     os << ", " << data_[i + j * dim_[0]];
                     os << ", " << err_[i + j * dim_[0]];
                 }
                 os << std::endl;
             }
         }
-    }
-    else
-    {
-        if (ndim() == 1)
-        {
+    } else {
+        if (ndim() == 1) {
             os << "x,y" << std::endl;
-            for (size_t i = 0; i < dim_[0]; ++i)
-            {
+            for (size_t i = 0; i < dim_[0]; ++i) {
                 if (!x_category_.empty())
                     os << std::quoted(x_category_[i]) << ", ";
                 else
                     os << x_[i] << ", ";
                 os << data_[i] << std::endl;
             }
-        }
-        else
-        {
-            for (size_t i = 0; i < dim_[0]; ++i)
-            {
+        } else {
+            for (size_t i = 0; i < dim_[0]; ++i) {
                 os << data_[i];
-                for (size_t j = 1; j < dim_[1]; ++j)
-                {
+                for (size_t j = 1; j < dim_[1]; ++j) {
                     os << ", " << data_[i + j * dim_[0]];
                 }
                 os << std::endl;
@@ -245,8 +224,7 @@ void DataSlice::export_csv(std::ostream &os)
 
 size_t DataSlice::_get_(size_t d, const dim_t &i0, const vec_t &yy, size_t n, double *v) const
 {
-    if (ndim() == 1)
-    {
+    if (ndim() == 1) {
         const double *p = yy.data() + i0[0];
         size_t m = std::min(n, dim_[0] - i0[0]);
         std::memcpy(v, p, m * sizeof(double));
@@ -265,8 +243,7 @@ size_t DataSlice::_get_(size_t d, const dim_t &i0, const vec_t &yy, size_t n, do
 void DataSlice::assign_(const dim_t &new_i0)
 {
     DataStorePtr d = D_.lock();
-    if (!d)
-    { // data pointer has been deleted
+    if (!d) { // data pointer has been deleted
         clear();
         return;
     }
@@ -295,30 +272,24 @@ void DataSlice::assign_(const dim_t &new_i0)
     }
 
     bool withErrors = d->hasErrors();
-    if (ndim() == 1)
-    {
+    if (ndim() == 1) {
         i0_[dx()] = 0;
         d->get_y(dx(), i0_, dim_[0], data_.data());
-        if (d->hasErrors())
-        {
+        if (d->hasErrors()) {
             d->get_dy(dx(), i0_, dim_[0], err_.data());
         }
-    }
-    else
-    {
+    } else {
         i0_[dx()] = 0;
         i0_[dy()] = 0;
         double *p = data_.data();
         double *dp = withErrors ? err_.data() : nullptr;
         dim_t j1(i0_);
         // copy row-by-row [column-major storage]
-        for (size_t i = 0; i < dim_[1]; ++i)
-        {
+        for (size_t i = 0; i < dim_[1]; ++i) {
             j1[dy()] = i;
             d->get_y(dx(), j1, dim_[0], p);
             p += dim_[0];
-            if (withErrors)
-            {
+            if (withErrors) {
                 d->get_dy(dx(), i0_, dim_[0], dp);
                 dp += dim_[0];
             }
