@@ -22,6 +22,109 @@
 
 #include <fstream>
 
+bool hasSingletonDim(const DataStorePtr d)
+{
+    if (d->empty())
+        return false;
+    for (size_t d : d->dim()) {
+        if (d == 1)
+            return true;
+    }
+    return false;
+}
+
+class SqueezedDataStore : public AbstractDataStore
+{
+public:
+    SqueezedDataStore(const DataStorePtr d)
+        : D_(d)
+    {
+        name_ = d->name();
+        desc_ = d->description();
+        if (!d->empty()) {
+            if (d->size() == 1) { // scalar
+                dim_ = {1};
+                dim_name_ = {d->dim_name(0)};
+                dim_desc_ = {d->dim_desc(0)};
+                dim_idx_ = {0};
+            } else {
+                for (int i = 0; i < d->dim().size(); ++i) {
+                    size_t n = d->dim()[i];
+                    if (n > 1) {
+                        dim_.push_back(n);
+                        dim_idx_.push_back(i);
+                        dim_name_.push_back(d->dim_name(i));
+                        dim_desc_.push_back(d->dim_desc(i));
+                    }
+                }
+            }
+        }
+    }
+    virtual ~SqueezedDataStore() {}
+
+    bool is_numeric() const override { return D_.isNull() ? true : D_.lock()->is_numeric(); }
+    bool hasErrors() const override { return D_.isNull() ? false : D_.lock()->hasErrors(); }
+    bool is_x_categorical(size_t d) const override
+    {
+        return D_.isNull() ? false : D_.lock()->is_x_categorical(dim_idx_[d]);
+    }
+    size_t get_y_text(size_t d, const dim_t &i0, strvec_t &y) const override
+    {
+        return D_.isNull() ? 0 : D_.lock()->get_y_text(dim_idx_[d], i1(i0), y);
+    }
+    size_t get_x_categorical(size_t d, strvec_t &x) const override
+    {
+        return D_.isNull() ? 0 : D_.lock()->get_x_categorical(dim_idx_[d], x);
+    }
+
+protected:
+    QWeakPointer<AbstractDataStore> D_;
+    dim_t dim_idx_;
+
+    // expand a pointer to squeezed data (i0) to a pointer to original data (i1)
+    dim_t i1(const dim_t &i0) const
+    {
+        dim_t i1_(D_.lock()->ndim(), 0);
+        for (int i = 0; i < ndim(); ++i)
+            i1_[dim_idx_[i]] = i0[i];
+        return i1_;
+    }
+
+    size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const override
+    {
+        if (D_.isNull())
+            return 0;
+        DataStorePtr p = D_.lock();
+        std::vector<double> buff(n);
+        int m = p->get_y(dim_idx_[d], i1(i0), buff);
+        std::copy(buff.begin(), buff.begin() + m, v);
+        return m;
+    }
+    size_t get_dy(size_t d, const dim_t &i0, size_t n, double *v) const override
+    {
+        if (D_.isNull())
+            return 0;
+        DataStorePtr p = D_.lock();
+        std::vector<double> buff(n);
+        int m = p->get_dy(dim_idx_[d], i1(i0), buff);
+        std::copy(buff.begin(), buff.begin() + m, v);
+        return m;
+    }
+    size_t get_x(size_t d, size_t n, double *v) const override
+    {
+        if (D_.isNull())
+            return 0;
+        DataStorePtr p = D_.lock();
+        std::vector<double> buff(n);
+        int m = p->get_x(dim_idx_[d], buff);
+        std::copy(buff.begin(), buff.begin() + m, v);
+        return m;
+    }
+
+private:
+    SqueezedDataStore();
+};
+
 // this must be outside any namespace
 inline void __initResource__()
 {
@@ -33,8 +136,10 @@ void QDataBrowser::initResources()
     __initResource__();
 }
 
-QDataBrowser::QDataBrowser(QWidget *parent)
-    : QSplitter{parent}, lastLeftPanelPos(100)
+QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
+    : QSplitter{parent}
+    , ignoreSingletonDims_(ignoreSingletonDims)
+    , lastLeftPanelPos(100)
 {
     /* create data model */
     dataModel = new QStandardItemModel(0, 1, this);
@@ -467,7 +572,15 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
         dataView[v]->updateView();
     }
     if (i) {
+        // get the data
         DataStorePtr D = i->data().value<DataStorePtr>();
+        // handle singleton dims option
+        if (D && ignoreSingletonDims_ && hasSingletonDim(D)) {
+            // create a squeezed proxy data wrapper
+            D = DataStorePtr(new SqueezedDataStore(D));
+            // store it in the proxy container
+            dataProxy.setValue(D);
+        }
         if (D) {
             if (D->is_numeric()) {
                 for (int i = 0; i < nViews; ++i) {

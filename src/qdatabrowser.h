@@ -21,7 +21,8 @@ class QDataBrowser : public QSplitter
 {
     Q_OBJECT
 
-    Q_PROPERTY(QString treeTitle READ treeTitle WRITE setTreeTitle CONSTANT)
+    Q_PROPERTY(QString treeTitle READ treeTitle WRITE setTreeTitle)
+    Q_PROPERTY(bool ignoreSingletonDims READ ignoreSingletonDims CONSTANT)
 
 public:
     enum PlotType { Line, Points, LineAndPoints, Stairs, ErrorBar };
@@ -31,13 +32,16 @@ public:
     Q_ENUM(ViewType)
 
 public:
-    explicit QDataBrowser(QWidget *parent = nullptr);
+    explicit QDataBrowser(QWidget *parent = nullptr, bool ignoreSingletonDims = true);
 
     // init static lib resources (icons, etc.)
     static void initResources();
 
-    const QString &treeTitle() { return treeTitle_; }
+    // properties
+    const QString &treeTitle() const { return treeTitle_; }
     void setTreeTitle(const QString &t);
+    bool ignoreSingletonDims() const { return ignoreSingletonDims_; }
+    void setIgnoreSingletonDims(bool on = true) { ignoreSingletonDims_ = on; }
 
     // Insert a group node in the data model
     // below the specified location
@@ -45,7 +49,7 @@ public:
                   const QString &location = "/",
                   const QString &desc = QString());
 
-    // Inserta a data node in the data model at location
+    // Insert a data node in the data model at location
     // The name is given in the data
     // QDataBrowser takes ownership of the pointer
     // It is stored as a shared pointer
@@ -72,6 +76,11 @@ public slots:
 signals:
 
 private:
+    // singleton dims (with size=1) will not
+    // be presented in the slicer selection
+    bool ignoreSingletonDims_{true};
+    QVariant dataProxy;
+
     // data tree model
     QStandardItemModel *dataModel;
     QString treeTitle_;

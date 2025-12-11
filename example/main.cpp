@@ -34,20 +34,21 @@ public:
     {
         dim_t i(i0);
         size_t k0 = idx(i);
+        size_t m;
         if (d == 0)
         {
-            size_t m = std::min(n, size_t(M));
+            m = std::min(n, size_t(M));
             const double *p = y.data() + k0;
             for (int i = 0; i < m; ++i, p += N)
                 v[i] = *p;
         }
         else
         {
-            size_t m = std::min(n, size_t(N));
+            m = std::min(n, size_t(N));
             const double *p = y.data() + k0;
             std::copy(p, p + m, v);
         }
-        return 0;
+        return m;
     }
 
 protected:
@@ -56,25 +57,22 @@ protected:
 
 class random3d : public AbstractDataStore
 {
-    constexpr static const size_t N = 100;
-    constexpr static const size_t M = 3;
-    constexpr static const size_t L = 10;
 
 public:
-    random3d()
-        : AbstractDataStore("random3d", {L, M, N})
-        , y(new vec_t(L * M * N))
-        , dy(new vec_t(L * M * N))
+    random3d(const std::string &name, size_t n, size_t m, size_t l)
+        : AbstractDataStore(name, {n, m, l})
+        , y(new vec_t(n * m * l))
+        , dy(new vec_t(n * m * l))
     {
         randomize(y.get());
         randomize(dy.get(), 0.1);
-        desc_ = "Random data array [10x3x100]";
-        dim_name_[0] = "A";
+        desc_ = "Random data array";
+        dim_name_[0] = "X";
         dim_name_[1] = "Type";
-        dim_name_[2] = "X";
-        dim_desc_[0] = "Few random numbers";
+        dim_name_[2] = "A";
+        dim_desc_[2] = "Few random numbers";
         dim_desc_[1] = "Categories";
-        dim_desc_[2] = "Many random numbers";
+        dim_desc_[0] = "Many random numbers";
     }
 
     static void randomize(vec_t *y, double s = 1.0)
@@ -82,7 +80,7 @@ public:
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<> u(0.0, s);
-        for (int i = 0; i < L * M * N; ++i) {
+        for (int i = 0; i < y->size(); ++i) {
             (*y)[i] = u(gen);
         }
     }
@@ -91,10 +89,10 @@ public:
     bool is_x_categorical(size_t d) const override { return d == 1; }
     size_t get_x_categorical(size_t d, strvec_t &categories) const override
     {
-        categories[0] = "First";
-        categories[1] = "Second";
-        categories[2] = "Third";
-        return 3;
+        const char *cat[] = {"First", "Second", "Third"};
+        for (int i = 0; i < dim_[1]; ++i)
+            categories[i] = cat[i % 3];
+        return dim_[1];
     }
 
     size_t idx(const dim_t &i) const { return (i[0] * dim_[1] + i[1]) * dim_[2] + i[2]; }
@@ -109,22 +107,23 @@ protected:
     {
         dim_t i(i0);
         size_t k0 = idx(i);
+        size_t m;
         if (d == 0) {
-            size_t m = std::min(n, size_t(L));
+            m = std::min(n, dim_[0]);
             const double *p = y->data() + k0;
-            for (int i = 0; i < m; ++i, p += M * N)
+            for (int i = 0; i < m; ++i, p += dim_[1] * dim_[2])
                 v[i] = *p;
         } else if (d == 1) {
-            size_t m = std::min(n, size_t(M));
+            m = std::min(n, dim_[1]);
             const double *p = y->data() + k0;
-            for (int i = 0; i < m; ++i, p += N)
+            for (int i = 0; i < m; ++i, p += dim_[2])
                 v[i] = *p;
         } else {
-            size_t m = std::min(n, size_t(N));
+            m = std::min(n, dim_[2]);
             const double *p = y->data() + k0;
             std::copy(p, p + m, v);
         }
-        return 0;
+        return m;
     }
     size_t get_y(size_t d, const dim_t &i0, size_t n, double *v) const override
     {
@@ -194,8 +193,9 @@ protected:
 class MyTimer : public QTimer
 {
 public:
-    MyTimer(QDataBrowser *w, std::shared_ptr<AbstractDataStore::vec_t> y)
+    MyTimer(QDataBrowser *w, const std::string &path, std::shared_ptr<AbstractDataStore::vec_t> y)
         : w_(w)
+        , path_(path)
         , y_(y)
     {}
 
@@ -205,11 +205,12 @@ protected:
         if (y_)
             random3d::randomize(y_.get());
         if (w_)
-            w_->dataUpdated("/RandomData/3D/random3d");
+            w_->dataUpdated(path_.c_str());
     }
 
-    std::shared_ptr<AbstractDataStore::vec_t> y_;
     QPointer<QDataBrowser> w_;
+    std::string path_;
+    std::shared_ptr<AbstractDataStore::vec_t> y_;
 };
 
 int main(int argc, char *argv[])
@@ -239,30 +240,39 @@ int main(int argc, char *argv[])
     vbox1->setContentsMargins(0, 0, 0, 0);
     frm->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
     QDataBrowser *w = new QDataBrowser;
+    w->setIgnoreSingletonDims();
     vbox1->addWidget(w);
     vbox->addWidget(frm);
     win.show();
 
-    random3d *r3d = new random3d();
-    std::shared_ptr<AbstractDataStore::vec_t> y = r3d->data();
+    random3d *R1 = new random3d("R1", 1, 2, 10);
+    std::shared_ptr<AbstractDataStore::vec_t> y1 = R1->data();
+    random3d *R2 = new random3d("R2", 5, 3, 25);
+    std::shared_ptr<AbstractDataStore::vec_t> y2 = R2->data();
 
     w->addGroup("RandomData", "/", "Various random data arrays");
+
+    w->addGroup("3D", "/RandomData");
+    w->addData(R1, "/RandomData/3D");
+    w->addData(R2, "/RandomData/3D");
+
+    MyTimer timer1(w, "/RandomData/3D/R1", y1);
+    timer1.start(1000);
+    MyTimer timer2(w, "/RandomData/3D/R2", y2);
+    timer2.start(1500);
+
     w->addGroup("2D", "/RandomData");
     w->addData(new random2d(), "/RandomData/2D");
-    w->addGroup("3D", "/RandomData");
-    w->addData(r3d, "/RandomData/3D");
+
     w->addData(new wave1d(), "RandomData");
 
     w->addGroup("TextData", "/", "Various text data arrays");
     w->addData(new text2d, "/TextData");
     w->addData(new text1d, "/TextData");
 
-    w->selectItem("/RandomData/3D/random3d");
+    w->selectItem("/RandomData/3D/R1");
     w->setActiveView(QDataBrowser::Plot);
     w->setPlotType(QDataBrowser::ErrorBar);
-
-    MyTimer timer(w, y);
-    timer.start(1000);
 
     //auto f1 = [w] { w->clear("/RandomData/2D"); };
     //QTimer::singleShot(10000, w, f1);
