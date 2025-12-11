@@ -13,6 +13,7 @@ class QToolButton;
 class QLabel;
 class QStackedWidget;
 class QTabWidget;
+class QTableWidget;
 
 class QAbstractDataView;
 class QDataSliceSelector;
@@ -90,6 +91,7 @@ private:
     QDataSliceSelector *sliceSelector[nViews];
     QAbstractDataView *dataView[nViews];
     QTreeView *dataTree;
+    QTableWidget *infoTable;
 
     // layout widgets
     QTabWidget *viewTab;
@@ -115,6 +117,7 @@ private:
     QString itemPath(QStandardItem *i);
     bool dataUpdated(QStandardItem *i);
     bool isBelow(const QModelIndex &i, const QModelIndex &g);
+    void updateInfoTable(QStandardItem *i);
 
 private slots:
     void onLeftSplitterMoved(int pos, int index);

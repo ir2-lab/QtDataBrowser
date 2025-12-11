@@ -9,6 +9,7 @@
 #include <QFileDialog>
 #include <QFrame>
 #include <QGuiApplication>
+#include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QMenu>
@@ -16,6 +17,7 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStandardItemModel>
+#include <QTableWidget>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -155,6 +157,30 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
             &QDataBrowser::onDataItemSelect);
     // dataTree->setStyleSheet("background: white"); // ivory, honeydew
 
+    /* create left-side info table */
+    infoTable = new QTableWidget;
+    infoTable->setAlternatingRowColors(true);
+    infoTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    //infoTable->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+
+    QSplitter *leftSplitter = new QSplitter(Qt::Vertical);
+    leftSplitter->setChildrenCollapsible(false);
+    leftSplitter->addWidget(dataTree);
+    {
+        QWidget *w = new QWidget;
+        QVBoxLayout *vbox = new QVBoxLayout;
+        vbox->setContentsMargins(0, 0, 0, 0);
+        vbox->setSpacing(0);
+        w->setLayout(vbox);
+
+        QLabel *lbl = new QLabel("Properties");
+        lbl->setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
+        vbox->addWidget(lbl);
+
+        vbox->addWidget(infoTable);
+        leftSplitter->addWidget(w);
+    }
+
     /* create 2nd splitter */
     bottomSplitter = new QSplitter(Qt::Vertical);
 
@@ -285,7 +311,7 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
         bottomSplitter->addWidget(bottomPanel);
     }
 
-    addWidget(dataTree);
+    addWidget(leftSplitter);
     addWidget(bottomSplitter);
     setCollapsible(1, false);
 }
@@ -489,6 +515,72 @@ bool QDataBrowser::isBelow(const QModelIndex &i, const QModelIndex &g)
     return false;
 }
 
+void QDataBrowser::updateInfoTable(QStandardItem *it)
+{
+    DataStorePtr D = it->data().value<DataStorePtr>();
+    if (!D)
+        return;
+
+    infoTable->setColumnCount(2);
+    infoTable->setRowCount(4 + D->ndim());
+
+    //infoTable->horizontalHeader()->hide();
+    infoTable->verticalHeader()->hide();
+
+    QStringList lbls;
+    lbls << "Properties" << "";
+    //infoTable->setHorizontalHeaderLabels(lbls);
+
+    QTableWidgetItem *item;
+    int r = 0;
+    item = new QTableWidgetItem("Name");
+    infoTable->setItem(r, 0, item);
+    item = new QTableWidgetItem(D->name().c_str());
+    infoTable->setItem(r, 1, item);
+
+    r++;
+    item = new QTableWidgetItem("Type");
+    infoTable->setItem(r, 0, item);
+    item = new QTableWidgetItem(D->is_numeric() ? "Numeric" : "Text");
+    infoTable->setItem(r, 1, item);
+
+    r++;
+    item = new QTableWidgetItem("Description");
+    infoTable->setItem(r, 0, item);
+    item = new QTableWidgetItem(D->description().c_str());
+    infoTable->setItem(r, 1, item);
+
+    r++;
+    item = new QTableWidgetItem("Shape");
+    infoTable->setItem(r, 0, item);
+    QString shapeStr;
+    if (D->is_scalar())
+        shapeStr = "Scalar";
+    else {
+        shapeStr = QString::number(D->dim()[0]);
+        for (int i = 1; i < D->ndim(); ++i) {
+            shapeStr += " × ";
+            shapeStr += QString::number(D->dim()[i]);
+        }
+    }
+    item = new QTableWidgetItem(shapeStr);
+    infoTable->setItem(r, 1, item);
+
+    for (int i = 0; i < D->ndim(); ++i) {
+        r++;
+        item = new QTableWidgetItem(QString("D%1").arg(i));
+        infoTable->setItem(r, 0, item);
+        item = new QTableWidgetItem(
+            QString("%1, %2").arg(D->dim_name(i).c_str()).arg(D->dim_desc(i).c_str()));
+        infoTable->setItem(r, 1, item);
+    }
+
+    //infoTable->resizeColumnToContents(0);
+    infoTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    infoTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    infoTable->horizontalHeader()->hide();
+}
+
 void QDataBrowser::onLeftSplitterMoved(int pos, int index)
 {
     int leftSize = sizes().front();
@@ -571,7 +663,9 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
         sliceSelector[v]->clear();
         dataView[v]->updateView();
     }
+    infoTable->clear();
     if (i) {
+        updateInfoTable(i);
         // get the data
         DataStorePtr D = i->data().value<DataStorePtr>();
         // handle singleton dims option
