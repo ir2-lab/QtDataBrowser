@@ -1,4 +1,4 @@
-#include "qdatabrowser.h"
+#include <QDataBrowser>
 
 #include <QApplication>
 #include <QPointer>
@@ -60,9 +60,7 @@ class random3d : public AbstractDataStore
 
 public:
     random3d(const std::string &name, size_t n, size_t m, size_t l)
-        : AbstractDataStore(name, {n, m, l})
-        , y(new vec_t(n * m * l))
-        , dy(new vec_t(n * m * l))
+        : AbstractDataStore(name, {n, m, l}), y(new vec_t(n * m * l)), dy(new vec_t(n * m * l))
     {
         randomize(y.get());
         randomize(dy.get(), 0.1);
@@ -80,7 +78,8 @@ public:
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<> u(0.0, s);
-        for (int i = 0; i < y->size(); ++i) {
+        for (int i = 0; i < y->size(); ++i)
+        {
             (*y)[i] = u(gen);
         }
     }
@@ -108,17 +107,22 @@ protected:
         dim_t i(i0);
         size_t k0 = idx(i);
         size_t m;
-        if (d == 0) {
+        if (d == 0)
+        {
             m = std::min(n, dim_[0]);
             const double *p = y->data() + k0;
             for (int i = 0; i < m; ++i, p += dim_[1] * dim_[2])
                 v[i] = *p;
-        } else if (d == 1) {
+        }
+        else if (d == 1)
+        {
             m = std::min(n, dim_[1]);
             const double *p = y->data() + k0;
             for (int i = 0; i < m; ++i, p += dim_[2])
                 v[i] = *p;
-        } else {
+        }
+        else
+        {
             m = std::min(n, dim_[2]);
             const double *p = y->data() + k0;
             std::copy(p, p + m, v);
@@ -194,10 +198,9 @@ class MyTimer : public QTimer
 {
 public:
     MyTimer(QDataBrowser *w, const std::string &path, std::shared_ptr<AbstractDataStore::vec_t> y)
-        : w_(w)
-        , path_(path)
-        , y_(y)
-    {}
+        : w_(w), path_(path), y_(y)
+    {
+    }
 
 protected:
     void timerEvent(QTimerEvent *) override
@@ -226,22 +229,23 @@ int main(int argc, char *argv[])
     {
         QStringList l = style_keys.filter("Fusion", Qt::CaseInsensitive);
         QApplication::setStyle(l.front());
-        //QApplication::setStyle("Adwaita");
-        //QApplication::setStyle("Adwaita-Dark");
+        // QApplication::setStyle("Adwaita");
+        // QApplication::setStyle("Adwaita-Dark");
     }
 
     QWidget win;
     win.setLocale(QLocale::c());
+    win.setWindowTitle("QDataBrowser Example");
     QVBoxLayout *vbox = new QVBoxLayout;
     win.setLayout(vbox);
     QFrame *frm = new QFrame;
     QVBoxLayout *vbox1 = new QVBoxLayout;
     frm->setLayout(vbox1);
     vbox1->setContentsMargins(0, 0, 0, 0);
-    frm->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
-    QDataBrowser *w = new QDataBrowser;
-    w->setIgnoreSingletonDims();
-    vbox1->addWidget(w);
+    // frm->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
+    QDataBrowser *dataBrowser = new QDataBrowser;
+    dataBrowser->setIgnoreSingletonDims();
+    vbox1->addWidget(dataBrowser);
     vbox->addWidget(frm);
     win.show();
 
@@ -250,39 +254,38 @@ int main(int argc, char *argv[])
     random3d *R2 = new random3d("R2", 5, 3, 25);
     std::shared_ptr<AbstractDataStore::vec_t> y2 = R2->data();
 
-    w->addGroup("RandomData", "/", "Various random data arrays");
+    dataBrowser->addGroup("RandomData", "/", "Various random data arrays");
 
-    w->addGroup("3D", "/RandomData");
-    w->addData(R1, "/RandomData/3D");
-    w->addData(R2, "/RandomData/3D");
+    dataBrowser->addGroup("3D", "/RandomData");
+    dataBrowser->addData(R1, "/RandomData/3D");
+    dataBrowser->addData(R2, "/RandomData/3D");
 
-    MyTimer timer1(w, "/RandomData/3D/R1", y1);
+    MyTimer timer1(dataBrowser, "/RandomData/3D/R1", y1);
     timer1.start(1000);
-    MyTimer timer2(w, "/RandomData/3D/R2", y2);
+    MyTimer timer2(dataBrowser, "/RandomData/3D/R2", y2);
     timer2.start(1500);
 
-    w->addGroup("2D", "/RandomData");
-    w->addData(new random2d(), "/RandomData/2D");
+    dataBrowser->addGroup("2D", "/RandomData");
+    dataBrowser->addData(new random2d(), "/RandomData/2D");
 
-    w->addData(new wave1d(), "RandomData");
+    dataBrowser->addData(new wave1d(), "RandomData");
 
-    w->addGroup("TextData", "/", "Various text data arrays");
-    w->addData(new text2d, "/TextData");
-    w->addData(new text1d, "/TextData");
+    dataBrowser->addGroup("TextData", "/", "Various text data arrays");
+    dataBrowser->addData(new text2d, "/TextData");
+    dataBrowser->addData(new text1d, "/TextData");
 
-    w->selectItem("/RandomData/3D/R1");
-    w->setActiveView(QDataBrowser::Plot);
-    w->setPlotType(QDataBrowser::ErrorBar);
+    dataBrowser->selectItem("/RandomData/3D/R1");
+    dataBrowser->setActiveView(QDataBrowser::Plot);
+    dataBrowser->setPlotType(QDataBrowser::ErrorBar);
 
-    //auto f1 = [w] { w->clear("/RandomData/2D"); };
-    //QTimer::singleShot(10000, w, f1);
+    // auto f1 = [dataBrowser] { dataBrowser->clear("/RandomData/2D"); };
+    // QTimer::singleShot(10000, dataBrowser, f1);
 
     return app.exec();
 }
 
 text2d::text2d()
-    : AbstractDataStore("text2d", {N, M})
-    , y(N * M)
+    : AbstractDataStore("text2d", {N, M}), y(N * M)
 {
     for (int i = 0; i < N * M; ++i)
         y[i] = std::to_string(i + 1);
@@ -290,7 +293,8 @@ text2d::text2d()
 
 size_t text2d::get_y_text(size_t d, const dim_t &i0, strvec_t &t) const
 {
-    if (d == 0) {
+    if (d == 0)
+    {
         size_t k = dim_[0] * i0[1];
         size_t m = std::min(y.size(), dim_[0]);
         for (size_t i = 0; i < dim_[0]; ++i, ++k)
@@ -306,8 +310,7 @@ size_t text2d::get_y_text(size_t d, const dim_t &i0, strvec_t &t) const
 }
 
 text1d::text1d()
-    : AbstractDataStore("text1d", {1})
-    , y(1)
+    : AbstractDataStore("text1d", {1}), y(1)
 {
     y[0] =
         R"(

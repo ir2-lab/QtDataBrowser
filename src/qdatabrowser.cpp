@@ -28,7 +28,8 @@ bool hasSingletonDim(const DataStorePtr d)
 {
     if (d->empty())
         return false;
-    for (size_t d : d->dim()) {
+    for (size_t d : d->dim())
+    {
         if (d == 1)
             return true;
     }
@@ -43,16 +44,22 @@ public:
     {
         name_ = d->name();
         desc_ = d->description();
-        if (!d->empty()) {
-            if (d->size() == 1) { // scalar
+        if (!d->empty())
+        {
+            if (d->size() == 1)
+            { // scalar
                 dim_ = {1};
                 dim_name_ = {d->dim_name(0)};
                 dim_desc_ = {d->dim_desc(0)};
                 dim_idx_ = {0};
-            } else {
-                for (int i = 0; i < d->dim().size(); ++i) {
+            }
+            else
+            {
+                for (int i = 0; i < d->dim().size(); ++i)
+                {
                     size_t n = d->dim()[i];
-                    if (n > 1) {
+                    if (n > 1)
+                    {
                         dim_.push_back(n);
                         dim_idx_.push_back(i);
                         dim_name_.push_back(d->dim_name(i));
@@ -130,7 +137,7 @@ private:
 // this must be outside any namespace
 inline void __initResource__()
 {
-    Q_INIT_RESOURCE(qtdatabrowser_resources);
+    Q_INIT_RESOURCE(qtdatabrowser);
 }
 
 void QDataBrowser::initResources()
@@ -139,9 +146,7 @@ void QDataBrowser::initResources()
 }
 
 QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
-    : QSplitter{parent}
-    , ignoreSingletonDims_(ignoreSingletonDims)
-    , lastLeftPanelPos(100)
+    : QSplitter{parent}, ignoreSingletonDims_(ignoreSingletonDims), lastLeftPanelPos(100)
 {
     /* create data model */
     dataModel = new QStandardItemModel(0, 1, this);
@@ -161,7 +166,7 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
     infoTable = new QTableWidget;
     infoTable->setAlternatingRowColors(true);
     infoTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    //infoTable->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    // infoTable->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
 
     QSplitter *leftSplitter = new QSplitter(Qt::Vertical);
     leftSplitter->setChildrenCollapsible(false);
@@ -210,7 +215,7 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
         hbox->addWidget(dataName);
 
         copyPathBt = new QToolButton;
-        copyPathBt->setIcon(QIcon(":/qdatabrowser/lucide/copy.svg"));
+        copyPathBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/copy.svg"));
         copyPathBt->setToolTip("Copy path to clipboard");
         copyPathBt->setAutoRaise(true);
         connect(copyPathBt, &QToolButton::clicked, this, &QDataBrowser::onCopyPath);
@@ -220,13 +225,13 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
         hbox->addStretch();
 
         optionsBt = new QToolButton;
-        optionsBt->setIcon(QIcon(":/qdatabrowser/lucide/settings-2.svg"));
+        optionsBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/settings-2.svg"));
         optionsBt->setPopupMode(QToolButton::InstantPopup);
         optionsBt->setToolTip("View options menu");
         hbox->addWidget(optionsBt);
 
         btExport = new QToolButton;
-        btExport->setIcon(QIcon(":/qdatabrowser/lucide/download.svg"));
+        btExport->setIcon(QIcon(":/qdatabrowser/icons/lucide/download.svg"));
         btExport->setText("Export");
         btExport->setToolTip("Export data/view");
         btExport->setPopupMode(QToolButton::InstantPopup);
@@ -248,7 +253,7 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
         hbox->addWidget(frm);
 
         leftPanelBt = new QToolButton;
-        leftPanelBt->setIcon(QIcon(":/qdatabrowser/lucide/panel-left.svg"));
+        leftPanelBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/panel-left.svg"));
         leftPanelBt->setCheckable(true);
         leftPanelBt->setChecked(true);
         leftPanelBt->setToolTip("Hide left panel");
@@ -257,7 +262,7 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
         hbox->addWidget(leftPanelBt);
 
         bottomPanelBt = new QToolButton;
-        bottomPanelBt->setIcon(QIcon(":/qdatabrowser/lucide/panel-bottom.svg"));
+        bottomPanelBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/panel-bottom.svg"));
         bottomPanelBt->setCheckable(true);
         bottomPanelBt->setChecked(true);
         bottomPanelBt->setToolTip("Hide bottom panel");
@@ -273,7 +278,7 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
 
     /* create dataView panel */
     viewTab = new QTabWidget;
-    //viewTab->setStyleSheet("background: white");
+    // viewTab->setStyleSheet("background: white");
     dataView[0] = new QTabularDataView;
     viewTab->addTab(dataView[0], dataView[0]->icon(), "Table");
     dataView[1] = new QPlotDataView;
@@ -329,7 +334,7 @@ bool QDataBrowser::addGroup(const QString &name, const QString &location, const 
         return false;
     if (!isGroup(parent))
         return false;
-    QStandardItem *g = new QStandardItem(QIcon(":/qdatabrowser/lucide/folder.svg"), name);
+    QStandardItem *g = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/folder.svg"), name);
     g->setData(QVariant::fromValue(DataStorePtr{}));
     g->setSelectable(false);
     g->setEditable(false);
@@ -350,7 +355,7 @@ bool QDataBrowser::addData(AbstractDataStore *data, const QString &location)
     QStandardItem *node = findChild(name, parent);
     if (!node)
     {
-        node = new QStandardItem(QIcon(":/qdatabrowser/lucide/layers.svg"), name);
+        node = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/layers.svg"), name);
         parent->appendRow(node);
     }
 
@@ -419,7 +424,7 @@ void QDataBrowser::clear(const QString &path)
 
 QDataBrowser::PlotType QDataBrowser::plotType() const
 {
-    return ((QPlotDataView *) dataView[1])->plotType();
+    return ((QPlotDataView *)dataView[1])->plotType();
 }
 
 QDataBrowser::ViewType QDataBrowser::activeView() const
@@ -429,7 +434,7 @@ QDataBrowser::ViewType QDataBrowser::activeView() const
 
 void QDataBrowser::setPlotType(PlotType t)
 {
-    ((QPlotDataView *) dataView[1])->setPlotType(t);
+    ((QPlotDataView *)dataView[1])->setPlotType(t);
 }
 
 void QDataBrowser::setActiveView(ViewType t)
@@ -524,12 +529,12 @@ void QDataBrowser::updateInfoTable(QStandardItem *it)
     infoTable->setColumnCount(2);
     infoTable->setRowCount(4 + D->ndim());
 
-    //infoTable->horizontalHeader()->hide();
+    // infoTable->horizontalHeader()->hide();
     infoTable->verticalHeader()->hide();
 
     QStringList lbls;
     lbls << "Properties" << "";
-    //infoTable->setHorizontalHeaderLabels(lbls);
+    // infoTable->setHorizontalHeaderLabels(lbls);
 
     QTableWidgetItem *item;
     int r = 0;
@@ -556,9 +561,11 @@ void QDataBrowser::updateInfoTable(QStandardItem *it)
     QString shapeStr;
     if (D->is_scalar())
         shapeStr = "Scalar";
-    else {
+    else
+    {
         shapeStr = QString::number(D->dim()[0]);
-        for (int i = 1; i < D->ndim(); ++i) {
+        for (int i = 1; i < D->ndim(); ++i)
+        {
             shapeStr += " × ";
             shapeStr += QString::number(D->dim()[i]);
         }
@@ -566,16 +573,25 @@ void QDataBrowser::updateInfoTable(QStandardItem *it)
     item = new QTableWidgetItem(shapeStr);
     infoTable->setItem(r, 1, item);
 
-    for (int i = 0; i < D->ndim(); ++i) {
+    for (int i = 0; i < D->ndim(); ++i)
+    {
         r++;
         item = new QTableWidgetItem(QString("D%1").arg(i));
         infoTable->setItem(r, 0, item);
-        item = new QTableWidgetItem(
-            QString("%1, %2").arg(D->dim_name(i).c_str()).arg(D->dim_desc(i).c_str()));
+        if (D->dim_desc(i).empty())
+        {
+            item = new QTableWidgetItem(
+                D->dim_name(i).c_str());
+        }
+        else
+        {
+            item = new QTableWidgetItem(
+                QString("%1, %2").arg(D->dim_name(i).c_str()).arg(D->dim_desc(i).c_str()));
+        }
         infoTable->setItem(r, 1, item);
     }
 
-    //infoTable->resizeColumnToContents(0);
+    // infoTable->resizeColumnToContents(0);
     infoTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     infoTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     infoTable->horizontalHeader()->hide();
@@ -659,29 +675,37 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
 {
     const int dim0[nViews] = {2, 1, 2};
     QStandardItem *i = selected.isValid() ? dataModel->itemFromIndex(selected) : nullptr;
-    for (int v = 0; v < nViews; ++v) {
+    for (int v = 0; v < nViews; ++v)
+    {
         sliceSelector[v]->clear();
         dataView[v]->updateView();
     }
     infoTable->clear();
-    if (i) {
+    if (i)
+    {
         updateInfoTable(i);
         // get the data
         DataStorePtr D = i->data().value<DataStorePtr>();
         // handle singleton dims option
-        if (D && ignoreSingletonDims_ && hasSingletonDim(D)) {
+        if (D && ignoreSingletonDims_ && hasSingletonDim(D))
+        {
             // create a squeezed proxy data wrapper
             D = DataStorePtr(new SqueezedDataStore(D));
             // store it in the proxy container
             dataProxy.setValue(D);
         }
-        if (D) {
-            if (D->is_numeric()) {
-                for (int i = 0; i < nViews; ++i) {
+        if (D)
+        {
+            if (D->is_numeric())
+            {
+                for (int i = 0; i < nViews; ++i)
+                {
                     sliceSelector[i]->assign(D, dim0[i]);
                     dataView[i]->updateView();
                 }
-            } else {
+            }
+            else
+            {
                 sliceSelector[0]->assign(D, dim0[0]);
                 dataView[0]->updateView();
                 setActiveView(QDataBrowser::Table);
@@ -689,7 +713,9 @@ void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelInd
         }
         dataName->setText(itemPath(i));
         copyPathBt->show();
-    } else {
+    }
+    else
+    {
         dataName->setText(QString());
         copyPathBt->hide();
     }

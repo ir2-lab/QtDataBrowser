@@ -6,10 +6,9 @@
 #include <QStackedWidget>
 #include <QTableView>
 #include <QVBoxLayout>
+#include <QMatPlotWidget>
 
 #include "qdatasliceselector.h"
-
-#include "QMatPlotWidget.h"
 
 QAbstractDataView::QAbstractDataView(QWidget *parent)
     : QWidget{parent}
@@ -125,7 +124,7 @@ QTabularDataView::QTabularDataView(QWidget *parent)
 
 QIcon QTabularDataView::icon() const
 {
-    return QIcon(":/qdatabrowser/lucide/sheet.svg");
+    return QIcon(":/qdatabrowser/icons/lucide/sheet.svg");
 }
 
 void QTabularDataView::updateView_()
@@ -136,13 +135,16 @@ void QTabularDataView::updateView_()
     else
         title_->setText(slice_->name().c_str());
 
-    if (slice_->is_scalar()) {
+    if (slice_->is_scalar())
+    {
         if (slice_->is_numeric())
             scalarView_->setPlainText(QString::number((*slice_)(0, 0)));
         else
             scalarView_->setPlainText(slice_->text_data(0, 0).c_str());
         stack_->setCurrentIndex(0);
-    } else {
+    }
+    else
+    {
         stack_->setCurrentIndex(1);
     }
 }
@@ -166,7 +168,7 @@ QPlotDataView::QPlotDataView(QWidget *parent)
 
 QIcon QPlotDataView::icon() const
 {
-    return QIcon(":/qdatabrowser/lucide/chart-spline.svg");
+    return QIcon(":/qdatabrowser/icons/lucide/chart-spline.svg");
 }
 
 void QPlotDataView::exportImage() const
@@ -197,11 +199,13 @@ void QPlotDataView::updateView_()
     if (!haserr && type_ == QDataBrowser::ErrorBar)
         type_ = QDataBrowser::Line;
 
-    if (!slice_ || slice_->empty()) {
+    if (!slice_ || slice_->empty())
+    {
         return;
     }
 
-    switch (type_) {
+    switch (type_)
+    {
     case QDataBrowser::Line:
         linePlot->plot(slice_->x(), slice_->data());
         break;
@@ -219,14 +223,14 @@ void QPlotDataView::updateView_()
         break;
     }
     linePlot->setXlabel(slice_->dim_desc(0).c_str());
-    //if (slice_->ndim() > 1)
-    //    linePlot->setYlabel(slice_->dim_desc(1).c_str());
+    // if (slice_->ndim() > 1)
+    //     linePlot->setYlabel(slice_->dim_desc(1).c_str());
     linePlot->setTitle(slice_->description().c_str());
 }
 
 void QPlotDataView::createOptionsMenu()
 {
-    optionsMenu_ = new QMenu((QWidget *) this);
+    optionsMenu_ = new QMenu((QWidget *)this);
 
     QMenu *m;
     QAction *a;
@@ -269,25 +273,28 @@ void QPlotDataView::createOptionsMenu()
 
     m = optionsMenu_->addMenu("Plot type");
     plotTypeGroup = new QActionGroup(this);
-    a = m->addAction("Line", this, [this]() { this->setPlotType(QDataBrowser::Line); });
+    a = m->addAction("Line", this, [this]()
+                     { this->setPlotType(QDataBrowser::Line); });
     a->setCheckable(true);
     a->setChecked(type_ == QDataBrowser::Line);
     plotTypeGroup->addAction(a);
-    a = m->addAction("Points", this, [this]() { this->setPlotType(QDataBrowser::Points); });
+    a = m->addAction("Points", this, [this]()
+                     { this->setPlotType(QDataBrowser::Points); });
     a->setCheckable(true);
     a->setChecked(type_ == QDataBrowser::Points);
     plotTypeGroup->addAction(a);
-    a = m->addAction("Line+Points", this, [this]() {
-        this->setPlotType(QDataBrowser::LineAndPoints);
-    });
+    a = m->addAction("Line+Points", this, [this]()
+                     { this->setPlotType(QDataBrowser::LineAndPoints); });
     a->setCheckable(true);
     a->setChecked(type_ == QDataBrowser::LineAndPoints);
     plotTypeGroup->addAction(a);
-    a = m->addAction("Stairs", this, [this]() { this->setPlotType(QDataBrowser::Stairs); });
+    a = m->addAction("Stairs", this, [this]()
+                     { this->setPlotType(QDataBrowser::Stairs); });
     a->setCheckable(true);
     a->setChecked(type_ == QDataBrowser::Stairs);
     plotTypeGroup->addAction(a);
-    a = m->addAction("Error Bars", this, [this]() { this->setPlotType(QDataBrowser::ErrorBar); });
+    a = m->addAction("Error Bars", this, [this]()
+                     { this->setPlotType(QDataBrowser::ErrorBar); });
     a->setCheckable(true);
     a->setChecked(type_ == QDataBrowser::ErrorBar);
     plotTypeGroup->addAction(a);
@@ -338,7 +345,7 @@ QHeatMapDataView::QHeatMapDataView(QWidget *parent)
 
 QIcon QHeatMapDataView::icon() const
 {
-    return QIcon(":/qdatabrowser/lucide/map.svg");
+    return QIcon(":/qdatabrowser/icons/lucide/map.svg");
 }
 
 void QHeatMapDataView::exportImage() const
@@ -354,7 +361,8 @@ void QHeatMapDataView::updateView_()
     heatMap->setYlabel("");
     heatMap->setTitle("");
 
-    if (!slice_ || slice_->empty()) {
+    if (!slice_ || slice_->empty())
+    {
         return;
     }
 
@@ -370,47 +378,47 @@ void QHeatMapDataView::updateView_()
 
 void QHeatMapDataView::createOptionsMenu()
 {
-    optionsMenu_ = new QMenu((QWidget *) this);
+    optionsMenu_ = new QMenu((QWidget *)this);
 
     QMenu *m;
     QAction *a;
 
     m = optionsMenu_->addMenu("Colormap");
     colormapGroup = new QActionGroup(this);
-    a = m->addAction("Viridis", heatMap, [this]() {
+    a = m->addAction("Viridis", heatMap, [this]()
+                     {
         this->heatMap->setColorMap(QMatPlotWidget::Viridis);
         cmap_ = QMatPlotWidget::Viridis;
-        updateView_();
-    });
+        updateView_(); });
     a->setCheckable(true);
     a->setChecked(cmap_ == QMatPlotWidget::Viridis);
     colormapGroup->addAction(a);
-    a = m->addAction("Turbo", heatMap, [this]() {
+    a = m->addAction("Turbo", heatMap, [this]()
+                     {
         this->heatMap->setColorMap(QMatPlotWidget::Turbo);
         cmap_ = QMatPlotWidget::Turbo;
-        updateView_();
-    });
+        updateView_(); });
     a->setCheckable(true);
     a->setChecked(cmap_ == QMatPlotWidget::Turbo);
     colormapGroup->addAction(a);
-    a = m->addAction("Jet", heatMap, [this]() {
+    a = m->addAction("Jet", heatMap, [this]()
+                     {
         this->heatMap->setColorMap(QMatPlotWidget::Jet);
         cmap_ = QMatPlotWidget::Jet;
-        updateView_();
-    });
+        updateView_(); });
     a->setCheckable(true);
     a->setChecked(cmap_ == QMatPlotWidget::Jet);
     colormapGroup->addAction(a);
-    a = m->addAction("Gray", heatMap, [this]() {
+    a = m->addAction("Gray", heatMap, [this]()
+                     {
         this->heatMap->setColorMap(QMatPlotWidget::Gray);
         cmap_ = QMatPlotWidget::Gray;
-        updateView_();
-    });
+        updateView_(); });
     a->setCheckable(true);
     a->setChecked(cmap_ == QMatPlotWidget::Gray);
     colormapGroup->addAction(a);
 
-    //optionsMenu_->addSeparator();
+    // optionsMenu_->addSeparator();
 
     m = optionsMenu_->addMenu("Color scale");
     linLogGroup = new QActionGroup(this);
@@ -423,7 +431,7 @@ void QHeatMapDataView::createOptionsMenu()
     a->setChecked(false);
     linLogGroup->addAction(a);
 
-    //optionsMenu_->addSeparator();
+    // optionsMenu_->addSeparator();
 
     gridAct = optionsMenu_->addAction("Grid", heatMap, SLOT(setGrid(bool)));
     gridAct->setCheckable(true);

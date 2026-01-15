@@ -12,21 +12,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(QTDATABROWSER_BUILD_EXAMPLES "Build example programs" OFF)
 
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets Svg)
-message(STATUS "Found Qt${QT_VERSION_MAJOR}")
+message(STATUS "Found Qt5 at ${Qt5_DIR}")
 
-include(FetchContent)
-
-set(FETCHCONTENT_BASE_DIR ${CMAKE_BINARY_DIR}/external)
-set(FETCHCONTENT_QUIET FALSE)
-set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER)
-
-FetchContent_Declare(qmatplotwidget
-      GIT_REPOSITORY https://github.com/gapost/qmatplotwidget.git
-      GIT_TAG master
-      GIT_SUBMODULES_RECURSE FALSE
-      GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(qmatplotwidget)
+find_package(QMatPlotWidget REQUIRED)
+message(STATUS "Found QMatPlotWidget at ${QMatPlotWidget_DIR}")
 
 # Library.
 add_subdirectory(src)

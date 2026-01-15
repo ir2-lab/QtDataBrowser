@@ -1,7 +1,7 @@
 #ifndef DATASLICE_H
 #define DATASLICE_H
 
-#include "abstractdatastore.h"
+#include "qdatabrowser.h"
 
 #include <QSharedPointer>
 #include <cstring>

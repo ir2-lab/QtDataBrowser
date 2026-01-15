@@ -1,0 +1,22 @@
+<RCC>
+    <qresource prefix="/qdatabrowser/">
+        <file>icons/lucide/arrow-left-right.svg</file>
+        <file>icons/lucide/chart-pie.svg</file>
+        <file>icons/lucide/copy.svg</file>
+        <file>icons/lucide/panel-bottom-open.svg</file>
+        <file>icons/lucide/panel-bottom-close.svg</file>
+        <file>icons/lucide/panel-bottom.svg</file>
+        <file>icons/lucide/panel-left-open.svg</file>
+        <file>icons/lucide/panel-left-close.svg</file>
+        <file>icons/lucide/blocks.svg</file>
+        <file>icons/lucide/layers.svg</file>
+        <file>icons/lucide/table.svg</file>
+        <file>icons/lucide/folder.svg</file>
+        <file>icons/lucide/map.svg</file>
+        <file>icons/lucide/panel-left.svg</file>
+        <file>icons/lucide/sheet.svg</file>
+        <file>icons/lucide/chart-spline.svg</file>
+        <file>icons/lucide/download.svg</file>
+        <file>icons/lucide/settings-2.svg</file>
+    </qresource>
+</RCC>
