@@ -1,0 +1,21 @@
+@PACKAGE_INIT@
+
+# Allow find_dependency() to be used for downstream dependencies
+include(CMakeFindDependencyMacro)
+
+# find Qt5 components
+find_dependency(Qt5 COMPONENTS Core Widgets Svg REQUIRED)
+
+# Find QMatPlotWidget from CMake package config
+find_dependency(QMatPlotWidget QUIET)
+
+# Include the exported targets file that was installed alongside this config.
+# @PROJECT_NAME@ will be substituted during configure_package_config_file().
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+# Provide the package version to consumers (substituted during config file generation).
+set(PACKAGE_VERSION "@PROJECT_VERSION@")
+
+# Optional: provide hints/documentation variables for clients
+set(${PROJECT_NAME}_INCLUDE_DIRS "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}")
+set(${PROJECT_NAME}_LIBRARIES ${PROJECT_NAME}::${PROJECT_NAME})
