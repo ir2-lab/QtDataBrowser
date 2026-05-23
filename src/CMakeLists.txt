@@ -1,4 +1,4 @@
-add_library(${PROJECT_NAME} STATIC
+add_library(${PROJECT_NAME} SHARED
     qdatabrowser.h 
     qdatabrowser.cpp
     qdataview.h 
@@ -10,9 +10,19 @@ add_library(${PROJECT_NAME} STATIC
     dataslice.cpp
 )
 
+include(GenerateExportHeader)
+generate_export_header(${PROJECT_NAME}
+    EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/qtdatabrowser_export.h
+)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 set(INSTALL_HEADERS
     qdatabrowser.h
     QDataBrowser
+    ${CMAKE_CURRENT_BINARY_DIR}/qtdatabrowser_export.h
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -27,6 +37,7 @@ target_link_libraries(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
