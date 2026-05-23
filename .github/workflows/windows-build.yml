@@ -1,0 +1,66 @@
+name: Windows Build and Package
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build and Package (Windows / MSYS2 UCRT64)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-qt5-base
+            mingw-w64-ucrt-x86_64-qt5-svg
+            mingw-w64-ucrt-x86_64-gcc
+
+      # TODO: replace this step with the real QMatPlotWidget install once
+      # a package or release artifact is available for MSYS2 UCRT64.
+      - name: Install QMatPlotWidget (stub)
+        run: |
+          echo "QMatPlotWidget installation not yet automated — add steps here."
+          exit 1
+
+      - name: Configure
+        run: |
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DQTDATABROWSER_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Install
+        run: cmake --install build
+
+      - name: Package
+        run: cmake --build build --target package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QtDataBrowser-windows
+          path: build/QtDataBrowser-*-win64.*
+          if-no-files-found: warn
