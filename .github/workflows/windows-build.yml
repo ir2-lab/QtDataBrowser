@@ -30,18 +30,36 @@ jobs:
           msystem: UCRT64
           update: true
           install: >-
+            base-devel
+            git
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-qt5-base
             mingw-w64-ucrt-x86_64-qt5-svg
             mingw-w64-ucrt-x86_64-gcc
 
-      # TODO: replace this step with the real QMatPlotWidget install once
-      # a package or release artifact is available for MSYS2 UCRT64.
-      - name: Install QMatPlotWidget (stub)
+      - name: Resolve version
+        id: ver
+        shell: bash
         run: |
-          echo "QMatPlotWidget installation not yet automated — add steps here."
-          exit 1
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download QMatPlotWidget packages
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = gh release list --repo gapost/qmatplotwidget --limit 1 --json tagName --jq '.[0].tagName'
+          gh release download $tag --repo gapost/qmatplotwidget `
+            --pattern "*.pkg.tar.zst" `
+            --dir C:\Temp\qmatplotwidget-pkgs
+
+      - name: Install QMatPlotWidget packages
+        run: pacman -U --noconfirm /c/Temp/qmatplotwidget-pkgs/*.pkg.tar.zst
 
       - name: Configure
         run: |
@@ -55,12 +73,39 @@ jobs:
       - name: Install
         run: cmake --install build
 
-      - name: Package
-        run: cmake --build build --target package
+      - name: Create zip
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.tag }}".TrimStart('v')
+          Compress-Archive -Path build\QtDataBrowser\* `
+            -DestinationPath "QtDataBrowser-${ver}-win64.zip"
 
-      - name: Upload artifact
+      - name: Build MSYS2 packages
+        run: bash dist/mingw64/build_pkg.sh ${{ steps.ver.outputs.tag }}
+
+      - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
-          name: QtDataBrowser-windows
-          path: build/QtDataBrowser-*-win64.*
-          if-no-files-found: warn
+          name: QtDataBrowser-win64-zip
+          path: QtDataBrowser-*-win64.zip
+
+      - name: Upload runtime package
+        uses: actions/upload-artifact@v4
+        with:
+          name: QtDataBrowser-ucrt64-runtime
+          path: dist/mingw64/build/mingw-w64-ucrt-x86_64-qtdatabrowser-[0-9]*.pkg.tar.zst
+
+      - name: Upload devel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: QtDataBrowser-ucrt64-devel
+          path: dist/mingw64/build/mingw-w64-ucrt-x86_64-qtdatabrowser-devel-*.pkg.tar.zst
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          prerelease: ${{ contains(github.ref_name, '_') || contains(github.ref_name, '-') }}
+          files: |
+            QtDataBrowser-*-win64.zip
+            dist/mingw64/build/mingw-w64-ucrt-x86_64-qtdatabrowser-*.pkg.tar.zst
