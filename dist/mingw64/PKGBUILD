@@ -1,0 +1,70 @@
+# Maintainer: George Apostolopoulos <gapost47.com@proton.me>
+
+_realname=qtdatabrowser
+pkgbase=mingw-w64-${_realname}
+pkgname=(
+  "${MINGW_PACKAGE_PREFIX}-${_realname}"
+  "${MINGW_PACKAGE_PREFIX}-${_realname}-devel"
+)
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="A Qt widget for exploring multi-dimensional scientific data"
+arch=('any')
+mingw_arch=('mingw64' 'ucrt64' 'clang64' 'clangarm64')
+url="https://github.com/ir2-lab/QtDataBrowser"
+license=('spdx:MIT')
+makedepends=(
+  "${MINGW_PACKAGE_PREFIX}-cmake"
+  "${MINGW_PACKAGE_PREFIX}-ninja"
+  "${MINGW_PACKAGE_PREFIX}-cc"
+  "${MINGW_PACKAGE_PREFIX}-qt5-base"
+  "${MINGW_PACKAGE_PREFIX}-qt5-svg"
+  "${MINGW_PACKAGE_PREFIX}-qmatplotwidget-devel"
+)
+source=("${_realname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  mkdir -p "${srcdir}/build-${MSYSTEM}" && cd "${srcdir}/build-${MSYSTEM}"
+
+  MSYS2_ARG_CONV_EXCL="-DCMAKE_INSTALL_PREFIX=" \
+  cmake \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="${MINGW_PREFIX}" \
+    -DQTDATABROWSER_BUILD_EXAMPLES=OFF \
+    "${srcdir}/QtDataBrowser-${pkgver}"
+
+  cmake --build .
+}
+
+_package_all() {
+  cd "${srcdir}/build-${MSYSTEM}"
+  DESTDIR="${pkgdir}" cmake --install .
+}
+
+eval "package_${MINGW_PACKAGE_PREFIX}-${_realname}() {
+  pkgdesc=\"\${pkgdesc} (runtime)\"
+  depends=(
+    \"${MINGW_PACKAGE_PREFIX}-qt5-base\"
+    \"${MINGW_PACKAGE_PREFIX}-qmatplotwidget\"
+  )
+
+  _package_all
+
+  rm -rf \"\${pkgdir}\${MINGW_PREFIX}/include/\"
+  rm -rf \"\${pkgdir}\${MINGW_PREFIX}/lib/cmake/\"
+  find \"\${pkgdir}\${MINGW_PREFIX}/lib/\" -name '*.a' -delete 2>/dev/null || true
+}"
+
+eval "package_${MINGW_PACKAGE_PREFIX}-${_realname}-devel() {
+  pkgdesc=\"\${pkgdesc} (development)\"
+  depends=(
+    \"${MINGW_PACKAGE_PREFIX}-${_realname}=\${pkgver}\"
+    \"${MINGW_PACKAGE_PREFIX}-qt5-base\"
+  )
+
+  _package_all
+
+  rm -f \"\${pkgdir}\${MINGW_PREFIX}/bin/\"*.dll
+}"
