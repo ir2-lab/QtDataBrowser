@@ -220,8 +220,6 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
-    QDataBrowser::initResources();
-
     // select fusion style if available
     // for consistent look among different platforms
     QStringList style_keys = QStyleFactory::keys();
