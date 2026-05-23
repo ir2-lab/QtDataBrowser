@@ -134,17 +134,6 @@ private:
     SqueezedDataStore();
 };
 
-// this must be outside any namespace
-inline void __initResource__()
-{
-    Q_INIT_RESOURCE(qtdatabrowser);
-}
-
-void QDataBrowser::initResources()
-{
-    __initResource__();
-}
-
 QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
     : QSplitter{parent}, ignoreSingletonDims_(ignoreSingletonDims), lastLeftPanelPos(100)
 {

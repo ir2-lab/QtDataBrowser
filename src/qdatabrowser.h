@@ -8,6 +8,8 @@
 #include <QModelIndex>
 #include <QSplitter>
 
+#include "qtdatabrowser_export.h"
+
 class QStandardItemModel;
 class QStandardItem;
 class QTreeView;
@@ -22,7 +24,7 @@ class QDataSliceSelector;
 
 class AbstractDataStore;
 
-class QDataBrowser : public QSplitter
+class QTDATABROWSER_EXPORT QDataBrowser : public QSplitter
 {
     Q_OBJECT
 
@@ -50,9 +52,6 @@ public:
 
 public:
     explicit QDataBrowser(QWidget *parent = nullptr, bool ignoreSingletonDims = true);
-
-    // init static lib resources (icons, etc.)
-    static void initResources();
 
     // properties
     const QString &treeTitle() const { return treeTitle_; }

@@ -22,11 +22,18 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/${PROJECT_NAME}" CACHE PATH "Default install path" FORCE)
   else()
     set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/.local" CACHE PATH "Default install path" FORCE)
+    set(LINUX_LOCAL_BUILD ON)
   endif()
 endif()
 
 # Install folder support
 include(GNUInstallDirs)
+
+if(LINUX_LOCAL_BUILD)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+  message (STATUS "Install rpath =  ${CMAKE_INSTALL_RPATH}")
+endif()
 
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets Svg)
 message(STATUS "Found Qt5 at ${Qt5_DIR}")
