@@ -5,9 +5,9 @@
 Name:           qtdatabrowser
 Version:        0
 Release:        0
-Summary:        Qt plot widget
+Summary:        Qt widget for exploring multi-dimensional scientific data
 License:        GPL-3.0-or-later
-Url:            https://github.com/gapost/qmatplotwidget.git
+Url:            https://github.com/ir2-lab/QtDataBrowser
 
 Source0:        %{name}.tar.gz
 
@@ -40,12 +40,14 @@ BuildRequires:	 qwt-qt5-devel
 BuildRequires:	 qwt6-qt5-devel
    %endif
 %endif
+BuildRequires:  qmatplotwidget-devel
 
 %description
 A Qt widget for exploring multi-dimensional scientific data.
 
 %package        devel
 Summary:        Development files for %{name}
+Requires:       %{name}%{?_isa} = %{version}-%{release}
 
 %description    devel
 Development files for Qt widget for exploring multi-dimensional scientific data.
@@ -70,10 +72,13 @@ Development files for Qt widget for exploring multi-dimensional scientific data.
 %postun
 /sbin/ldconfig
 
-%files devel
+%files
 %license LICENSE
 %doc README.md
-%{_libdir}/lib*.a
+%{_libdir}/lib*.so.*
+
+%files devel
+%{_libdir}/lib*.so
 %{_includedir}/*
 %dir %{_libdir}/cmake/QtDataBrowser
 %{_libdir}/cmake/QtDataBrowser/*.cmake
