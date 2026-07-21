@@ -8,6 +8,13 @@ add_library(${PROJECT_NAME} SHARED
     qtdatabrowser.qrc
     dataslice.h 
     dataslice.cpp
+    legendview.h
+    legendview.cpp
+    axisvalueselect.h
+    axisvalueselect.cpp
+    value_with_error.h
+    qdatabrowserpage.h qdatabrowserpage.cpp
+    qdatabrowsertab.h qdatabrowsertab.cpp
 )
 
 include(GenerateExportHeader)

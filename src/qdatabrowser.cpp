@@ -1,11 +1,14 @@
 #include "qdatabrowser.h"
 
 #include "dataslice.h"
+#include "qdatabrowserpage.h"
+#include "qdatabrowsertab.h"
 #include "qdatasliceselector.h"
 #include "qdataview.h"
 
 #include <QClipboard>
 #include <QComboBox>
+#include <QDir>
 #include <QFileDialog>
 #include <QFrame>
 #include <QGuiApplication>
@@ -22,44 +25,47 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 
-#include <fstream>
-
-bool hasSingletonDim(const DataStorePtr d)
+AbstractDataSet::AbstractDataSet(const std::string &n,
+                                 const dim_t &d,
+                                 const strvec_t &d_name,
+                                 const strvec_t &d_desc)
+    : dim_(d)
+    , name_(n)
+    , dim_name_(d_name)
+    , dim_desc_(d_desc)
 {
-    if (d->empty())
-        return false;
-    for (size_t d : d->dim())
-    {
-        if (d == 1)
-            return true;
+    assert(!empty());
+    if (dim_name_.empty()) {
+        dim_name_.resize(d.size());
+        for (int i = 0; i < (int) dim_name_.size(); ++i) {
+            std::string s("D");
+            s += std::to_string(i);
+            dim_name_[i] = s;
+        }
     }
-    return false;
+    if (dim_desc_.empty()) {
+        dim_desc_.resize(d.size());
+    }
 }
 
-class SqueezedDataStore : public AbstractDataStore
+class SqueezedDataSet : public AbstractDataSet
 {
 public:
-    SqueezedDataStore(const DataStorePtr d)
+    SqueezedDataSet(const DataSetPtr d)
         : D_(d)
     {
         name_ = d->name();
         desc_ = d->description();
-        if (!d->empty())
-        {
-            if (d->size() == 1)
-            { // scalar
+        if (!d->empty()) {
+            if (d->size() == 1) { // scalar
                 dim_ = {1};
                 dim_name_ = {d->dim_name(0)};
                 dim_desc_ = {d->dim_desc(0)};
                 dim_idx_ = {0};
-            }
-            else
-            {
-                for (int i = 0; i < d->dim().size(); ++i)
-                {
+            } else {
+                for (int i = 0; i < (int) d->dim().size(); ++i) {
                     size_t n = d->dim()[i];
-                    if (n > 1)
-                    {
+                    if (n > 1) {
                         dim_.push_back(n);
                         dim_idx_.push_back(i);
                         dim_name_.push_back(d->dim_name(i));
@@ -69,7 +75,7 @@ public:
             }
         }
     }
-    virtual ~SqueezedDataStore() {}
+    virtual ~SqueezedDataSet() {}
 
     bool is_numeric() const override { return D_.isNull() ? true : D_.lock()->is_numeric(); }
     bool hasErrors() const override { return D_.isNull() ? false : D_.lock()->hasErrors(); }
@@ -87,14 +93,14 @@ public:
     }
 
 protected:
-    QWeakPointer<AbstractDataStore> D_;
+    QWeakPointer<AbstractDataSet> D_;
     dim_t dim_idx_;
 
     // expand a pointer to squeezed data (i0) to a pointer to original data (i1)
     dim_t i1(const dim_t &i0) const
     {
         dim_t i1_(D_.lock()->ndim(), 0);
-        for (int i = 0; i < ndim(); ++i)
+        for (int i = 0; i < (int) ndim(); ++i)
             i1_[dim_idx_[i]] = i0[i];
         return i1_;
     }
@@ -103,7 +109,7 @@ protected:
     {
         if (D_.isNull())
             return 0;
-        DataStorePtr p = D_.lock();
+        DataSetPtr p = D_.lock();
         std::vector<double> buff(n);
         int m = p->get_y(dim_idx_[d], i1(i0), buff);
         std::copy(buff.begin(), buff.begin() + m, v);
@@ -113,7 +119,7 @@ protected:
     {
         if (D_.isNull())
             return 0;
-        DataStorePtr p = D_.lock();
+        DataSetPtr p = D_.lock();
         std::vector<double> buff(n);
         int m = p->get_dy(dim_idx_[d], i1(i0), buff);
         std::copy(buff.begin(), buff.begin() + m, v);
@@ -123,7 +129,7 @@ protected:
     {
         if (D_.isNull())
             return 0;
-        DataStorePtr p = D_.lock();
+        DataSetPtr p = D_.lock();
         std::vector<double> buff(n);
         int m = p->get_x(dim_idx_[d], buff);
         std::copy(buff.begin(), buff.begin() + m, v);
@@ -131,15 +137,280 @@ protected:
     }
 
 private:
-    SqueezedDataStore();
+    SqueezedDataSet();
 };
 
-QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
-    : QSplitter{parent}, ignoreSingletonDims_(ignoreSingletonDims), lastLeftPanelPos(100)
+// ── QDataModel ────────────────────────────────────────────────────────────
+
+QDataModel::QDataModel(const QString &title, QObject *parent)
+    : QStandardItemModel(0, 1, parent)
+{
+    setTitle(title);
+}
+
+bool QDataModel::isGroupItem_(QStandardItem *item) const
+{
+    if (!item)
+        return false;
+    if (item == invisibleRootItem())
+        return true;
+    return item->data().value<DataSetPtr>().isNull();
+}
+
+bool QDataModel::isGroup(const QModelIndex &i) const
+{
+    if (!i.isValid())
+        return true;
+    return isGroupItem_(itemFromIndex(i));
+}
+
+bool QDataModel::isEmpty() const
+{
+    return invisibleRootItem()->rowCount();
+}
+
+int QDataModel::countItems(const QString &path, FindFlags f, bool recursive)
+{
+    uint c = 0;
+    QStandardItem *item = itemFromPath(path);
+    if (item && isGroupItem_(item)) {
+        countHelper_(item, f, recursive, c);
+    }
+    return c;
+}
+
+QModelIndexList QDataModel::match(
+    const QString &nameFilter, FindFlags f, const QString &from, bool recursive, int hits) const
+{
+    QModelIndexList lst;
+    QStandardItem *item = itemFromPath(from);
+    if (item && isGroupItem_(item)) {
+        matchHelper_(item, nameFilter, f, recursive, hits, lst);
+    }
+    return lst;
+}
+
+QStandardItem *QDataModel::findChild_(const QString &name, QStandardItem *parent) const
+{
+    for (int row = 0; row < parent->rowCount(); ++row)
+    {
+        QStandardItem *ch = parent->child(row);
+        if (ch->text() == name)
+            return ch;
+    }
+    return nullptr;
+}
+
+QStandardItem *QDataModel::ensurePath_(const QString &path, bool createMissing) const
+{
+    if (path.isEmpty() || path == "/")
+        return invisibleRootItem();
+
+    QStringList parts = path.split('/');
+    if (parts.first().isEmpty())
+        parts.takeFirst();
+
+    QStandardItem *cur = invisibleRootItem();
+    for (const QString &part : parts)
+    {
+        QStandardItem *child = findChild_(part, cur);
+        if (!child)
+        {
+            if (!createMissing)
+                return nullptr;
+            child = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/folder.svg"), part);
+            child->setData(QVariant::fromValue(DataSetPtr{}));
+            child->setSelectable(false);
+            child->setEditable(false);
+            cur->appendRow(child);
+        }
+        else if (!isGroupItem_(child))
+        {
+            return nullptr;
+        }
+        cur = child;
+    }
+    return cur;
+}
+
+QStandardItem *QDataModel::itemFromPath(const QString &path) const
+{
+    if (path.isEmpty() || path == "/")
+        return invisibleRootItem();
+
+    QStringList parts = path.split('/');
+    if (parts.first().isEmpty())
+        parts.takeFirst();
+
+    QStandardItem *item = invisibleRootItem();
+    for (const QString &part : parts) {
+        QStandardItem *child = findChild_(part, item);
+        if (!child)
+            return nullptr;
+        item = child;
+    }
+    return item;
+}
+
+QString QDataModel::pathFromItem(QStandardItem *item) const
+{
+    if (!item)
+        return QString();
+    if (item == invisibleRootItem())
+        return "/";
+    QStringList parts;
+    QStandardItem *cur = item;
+    while (cur && cur != invisibleRootItem()) {
+        parts.prepend(cur->text());
+        cur = cur->parent() ? cur->parent() : invisibleRootItem();
+        if (cur == invisibleRootItem())
+            break;
+    }
+    return "/" + parts.join('/');
+}
+
+QString QDataModel::pathFromIndex(const QModelIndex &index) const
+{
+    return pathFromItem(itemFromIndex(index));
+}
+
+bool QDataModel::addGroup(const QString &name, const QString &loc)
+{
+    QStandardItem *parent = ensurePath_(loc, true);
+    if (!parent)
+        return false;
+    QStandardItem *g = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/folder.svg"), name);
+    g->setData(QVariant::fromValue(DataSetPtr{}));
+    g->setSelectable(false);
+    g->setEditable(false);
+    parent->appendRow(g);
+    return true;
+}
+
+bool hasSingletonDim(const AbstractDataSet *d)
+{
+    if (d->empty())
+        return false;
+    for (size_t d : d->dim()) {
+        if (d == 1)
+            return true;
+    }
+    return false;
+}
+
+bool QDataModel::addData(std::unique_ptr<AbstractDataSet> d, const QString &loc)
+{
+    QStandardItem *parent = ensurePath_(loc, true);
+    if (!parent)
+        return false;
+
+    // create or reuse a node
+    QString name(d->name().c_str());
+    QStandardItem *node = findChild_(name, parent);
+    if (!node)
+    {
+        node = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/layers.svg"), name);
+        parent->appendRow(node);
+    }
+    node->setToolTip(d->description().empty() ? "Data array" : d->description().c_str());
+
+    // clear previous data
+    node->setData(QVariant(), Qt::UserRole + 1);
+    node->setData(QVariant(), Qt::UserRole + 2);
+
+    // set current data
+    if (squeezeSingletonDims_ && hasSingletonDim(d.get())) {
+        // handle singleton dims option
+        DataSetPtr D0(d.release());
+        // create a squeezed proxy data wrapper
+        DataSetPtr D(new SqueezedDataSet(D0));
+        // store both in the model node
+        node->setData(QVariant::fromValue(D), Qt::UserRole + 1);
+        node->setData(QVariant::fromValue(D0), Qt::UserRole + 2);
+    } else {
+        node->setData(QVariant::fromValue(DataSetPtr(d.release())), Qt::UserRole + 1);
+    }
+    node->setEditable(false);
+    return true;
+}
+
+void QDataModel::clear(const QString &path)
+{
+    if (path.isEmpty() || path == "/")
+    {
+        removeRows(0, rowCount());
+        return;
+    }
+    QStandardItem *item = ensurePath_(path, false);
+    if (!item || item == invisibleRootItem())
+        return;
+    QModelIndex idx = item->index();
+    removeRow(idx.row(), idx.parent());
+}
+
+void QDataModel::setDatasetChanged(const QString &path)
+{
+    QStandardItem *item = itemFromPath(path);
+    if (item)
+        setDatasetChanged_(item);
+}
+
+void QDataModel::setDatasetChanged_(QStandardItem *i)
+{
+    if (isGroupItem_(i)) {
+        for (int r = 0; r < i->rowCount(); ++r) {
+            setDatasetChanged_(i->child(r));
+        }
+    } else
+        emit itemChanged(i);
+}
+
+void QDataModel::countHelper_(QStandardItem *parent, FindFlags f, bool recursive, uint &cnt) const
+{
+    for (int r = 0; r < parent->rowCount(); ++r) {
+        QStandardItem *item = parent->child(r);
+        bool g = isGroupItem_(item);
+        int fi = g ? FindGroup : FindDataSet;
+        if (fi & f)
+            cnt++;
+        if (g && recursive)
+            countHelper_(item, f, recursive, cnt);
+    }
+}
+
+void QDataModel::matchHelper_(QStandardItem *parent,
+                                  const QString &nameFilter,
+                                  FindFlags f,
+                                  bool recursive,
+                                  int hits,
+                                  QModelIndexList &lst) const
+{
+    for (int r = 0; r < parent->rowCount(); ++r) {
+        QStandardItem *item = parent->child(r);
+        bool g = isGroupItem_(item);
+        int fi = g ? FindGroup : FindDataSet;
+        if ((fi & f) && QDir::match(nameFilter, item->text())) {
+            lst.append(indexFromItem(item));
+            if (hits > 0 && lst.count() >= hits)
+                return;
+        }
+        if (g && recursive) {
+            matchHelper_(item, nameFilter, f, recursive, hits, lst);
+            if (hits > 0 && lst.count() >= hits)
+                return;
+        }
+    }
+}
+
+// ── end QDataModel ────────────────────────────────────────────────────────
+
+QDataBrowser::QDataBrowser(QWidget *parent)
+    : QSplitter{parent}
+    , lastLeftPanelPos(100)
 {
     /* create data model */
-    dataModel = new QStandardItemModel(0, 1, this);
-    setTreeTitle("Data Tables");
+    dataModel = new QDataModel("");
+    //dataModel->setTitle("");
 
     /* create left-side tree widget */
     dataTree = new QTreeView;
@@ -175,345 +446,179 @@ QDataBrowser::QDataBrowser(QWidget *parent, bool ignoreSingletonDims)
         leftSplitter->addWidget(w);
     }
 
-    /* create 2nd splitter */
-    bottomSplitter = new QSplitter(Qt::Vertical);
-
     /* create right hand widget */
-    QWidget *rhw = new QWidget;
-    QVBoxLayout *vbox = new QVBoxLayout;
-    rhw->setLayout(vbox);
-    vbox->setContentsMargins(0, 0, 0, 0);
-    // vbox->setSpacing(0);
-    bottomSplitter->addWidget(rhw);
-    bottomSplitter->setCollapsible(0, false);
-
-    /* create top toolbox */
-    {
-        QWidget *tlbox = new QWidget;
-        // tlbox->setStyleSheet("background: LightGray"); // mintcream
-        QHBoxLayout *hbox = new QHBoxLayout;
-        tlbox->setLayout(hbox);
-        hbox->setContentsMargins(0, 0, 0, 0);
-
-        QLabel *lbl = new QLabel("Path: ");
-        hbox->addWidget(lbl);
-
-        dataName = new QLabel("");
-        dataName->setStyleSheet("font-weight: bold");
-        // dataName->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
-        hbox->addWidget(dataName);
-
-        copyPathBt = new QToolButton;
-        copyPathBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/copy.svg"));
-        copyPathBt->setToolTip("Copy path to clipboard");
-        copyPathBt->setAutoRaise(true);
-        connect(copyPathBt, &QToolButton::clicked, this, &QDataBrowser::onCopyPath);
-        hbox->addWidget(copyPathBt);
-        copyPathBt->hide();
-
-        hbox->addStretch();
-
-        optionsBt = new QToolButton;
-        optionsBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/settings-2.svg"));
-        optionsBt->setPopupMode(QToolButton::InstantPopup);
-        optionsBt->setToolTip("View options menu");
-        hbox->addWidget(optionsBt);
-
-        btExport = new QToolButton;
-        btExport->setIcon(QIcon(":/qdatabrowser/icons/lucide/download.svg"));
-        btExport->setText("Export");
-        btExport->setToolTip("Export data/view");
-        btExport->setPopupMode(QToolButton::InstantPopup);
-        btExport->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        {
-            QMenu *toolMenu = new QMenu(this);
-            actExportCSV = toolMenu->addAction("Export data to CSV ...");
-            actExportCSV->setEnabled(false);
-            connect(actExportCSV, &QAction::triggered, this, &QDataBrowser::onExportCSV);
-            actExportImg = toolMenu->addAction("Export plot to file ...");
-            actExportImg->setEnabled(false);
-            connect(actExportImg, &QAction::triggered, this, &QDataBrowser::onExportPlot);
-            btExport->setMenu(toolMenu);
-        }
-        hbox->addWidget(btExport);
-
-        QFrame *frm = new QFrame;
-        frm->setFrameStyle(QFrame::VLine | QFrame::Sunken);
-        hbox->addWidget(frm);
-
-        leftPanelBt = new QToolButton;
-        leftPanelBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/panel-left.svg"));
-        leftPanelBt->setCheckable(true);
-        leftPanelBt->setChecked(true);
-        leftPanelBt->setToolTip("Hide left panel");
-        connect(this, &QSplitter::splitterMoved, this, &QDataBrowser::onLeftSplitterMoved);
-        connect(leftPanelBt, &QToolButton::clicked, this, &QDataBrowser::onLeftPanelBtClicked);
-        hbox->addWidget(leftPanelBt);
-
-        bottomPanelBt = new QToolButton;
-        bottomPanelBt->setIcon(QIcon(":/qdatabrowser/icons/lucide/panel-bottom.svg"));
-        bottomPanelBt->setCheckable(true);
-        bottomPanelBt->setChecked(true);
-        bottomPanelBt->setToolTip("Hide bottom panel");
-        connect(bottomSplitter,
-                &QSplitter::splitterMoved,
-                this,
-                &QDataBrowser::onBottomSplitterMoved);
-        connect(bottomPanelBt, &QToolButton::clicked, this, &QDataBrowser::onBottomPanelBtClicked);
-        hbox->addWidget(bottomPanelBt);
-
-        vbox->addWidget(tlbox);
-    }
-
-    /* create dataView panel */
-    viewTab = new QTabWidget;
-    // viewTab->setStyleSheet("background: white");
-    dataView[0] = new QTabularDataView;
-    viewTab->addTab(dataView[0], dataView[0]->icon(), "Table");
-    dataView[1] = new QPlotDataView;
-    viewTab->addTab(dataView[1], dataView[1]->icon(), "Line");
-    dataView[2] = new QHeatMapDataView;
-    viewTab->addTab(dataView[2], dataView[2]->icon(), "HeatMap");
-    vbox->addWidget(viewTab);
-
-    /* create bottom toolbox */
-    {
-        bottomPanel = new QStackedWidget;
-
-        for (int i = 0; i < nViews; ++i)
-        {
-            sliceSelector[i] = new QDataSliceSelector;
-            bottomPanel->addWidget(sliceSelector[i]);
-            dataView[i]->setData(sliceSelector[i]->slice());
-            connect(sliceSelector[i],
-                    &QDataSliceSelector::sliceChanged,
-                    dataView[i],
-                    &QAbstractDataView::updateView);
-            connect(sliceSelector[i],
-                    &QDataSliceSelector::sliceChanged,
-                    this,
-                    &QDataBrowser::onSliceChanged);
-            connect(dataView[i],
-                    &QAbstractDataView::viewUpdated,
-                    this,
-                    &QDataBrowser::onViewUpdated);
-        }
-
-        connect(viewTab, &QTabWidget::currentChanged, bottomPanel, &QStackedWidget::setCurrentIndex);
-        connect(viewTab, &QTabWidget::currentChanged, this, &QDataBrowser::onCurrentViewChanged);
-
-        bottomSplitter->addWidget(bottomPanel);
-    }
+    pagesTab = new QDataBrowserTab;
+    connect(this, &QSplitter::splitterMoved, this, &QDataBrowser::onLeftSplitterMoved);
+    connect(pagesTab->leftPanelButton(),
+            &QToolButton::clicked,
+            this,
+            &QDataBrowser::onLeftPanelBtClicked);
+    connect(pagesTab, &QTabWidget::currentChanged, this, &QDataBrowser::onPageChanged);
 
     addWidget(leftSplitter);
-    addWidget(bottomSplitter);
+    addWidget(pagesTab);
     setCollapsible(1, false);
 }
 
-void QDataBrowser::setTreeTitle(const QString &t)
+void QDataBrowser::setModel(QDataModel *m)
 {
-    treeTitle_ = t;
-    dataModel->setHeaderData(0, Qt::Horizontal, treeTitle_);
-}
+    if (dataModel == m)
+        return;
 
-bool QDataBrowser::addGroup(const QString &name, const QString &location, const QString &desc)
-{
-    QStandardItem *parent = fromPath(location);
-    if (!parent)
-        return false;
-    if (!isGroup(parent))
-        return false;
-    QStandardItem *g = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/folder.svg"), name);
-    g->setData(QVariant::fromValue(DataStorePtr{}));
-    g->setSelectable(false);
-    g->setEditable(false);
-    g->setToolTip(desc.isEmpty() ? "Group" : desc);
-    parent->appendRow(g);
-    return true;
-}
+    if (dataModel)
+        disconnect(dataTree->selectionModel(), nullptr, this, nullptr);
 
-bool QDataBrowser::addData(AbstractDataStore *data, const QString &location)
-{
-    QStandardItem *parent = fromPath(location);
-    if (!parent)
-        return false;
-    if (!isGroup(parent))
-        return false;
+    dataModel = m;
+    m->setParent(this);
+    dataTree->setModel(dataModel);
+    connect(dataTree->selectionModel(),
+            &QItemSelectionModel::currentChanged,
+            this,
+            &QDataBrowser::onDataItemSelect);
 
-    QString name(data->name().c_str());
-    QStandardItem *node = findChild(name, parent);
-    if (!node)
-    {
-        node = new QStandardItem(QIcon(":/qdatabrowser/icons/lucide/layers.svg"), name);
-        parent->appendRow(node);
+    pagesTab->clear();
+    int npages = pagesTab->count();
+    int ndatasets = dataModel->countItems("/", QDataModel::FindDataSet);
+
+    // remove pages that will not be filled, exept the current one
+    while (npages > 1 && npages > ndatasets) {
+        int i = npages - 1;
+        while (i == pagesTab->currentIndex() && i > 0)
+            i--;
+        pagesTab->removeTab(i);
+        npages--;
     }
 
-    node->setData(QVariant::fromValue(DataStorePtr(data)));
-    node->setEditable(false);
-    node->setToolTip(data->description().empty() ? "Data array" : data->description().c_str());
-
-    return true;
-}
-
-bool QDataBrowser::selectItem(const QString &path)
-{
-    QStandardItem *item = fromPath(path);
-    if (!item)
-        return false;
-
-    QModelIndex i = item->index();
-    if (!i.isValid())
-        return false;
-
-    dataTree->setCurrentIndex(i);
-    return true;
-}
-
-void QDataBrowser::dataUpdated(const QString &path)
-{
-    QStandardItem *item = fromPath(path);
-    if (!item)
-        return;
-    dataUpdated(item);
-}
-
-void QDataBrowser::clear(const QString &path)
-{
-    QStandardItem *item = fromPath(path);
-
-    if (!item)
+    if (ndatasets == 0)
         return;
 
-    if (item == dataModel->invisibleRootItem())
-    {
-        dataModel->removeRows(0, dataModel->rowCount());
-        // setTreeTitle(treeTitle_);
-        onDataItemSelect(QModelIndex(), QModelIndex());
+    if (ndatasets == 1) {
+        QModelIndexList lst = dataModel->match("*", QDataModel::FindDataSet);
+        assert(!lst.isEmpty());
+        dataTree->setCurrentIndex(lst.front());
         return;
     }
 
-    QModelIndex I = item->index();
-    if (!I.isValid())
-        return;
-
-    QModelIndex C = dataTree->currentIndex();
-    bool currentDeleted = isGroup(item) ? isBelow(C, I) : I == C;
-
-    dataModel->removeRow(I.row(), I.parent());
-
-    if (currentDeleted)
-    {
-        for (int i = 0; i < nViews; ++i)
-        {
-            sliceSelector[i]->clear();
-            dataView[i]->updateView();
+    // get datasets for all pages
+    QModelIndexList lst = dataModel->match("*", QDataModel::FindDataSet, "/", true, npages);
+    assert(lst.count() == npages);
+    for (int i = 0; i < pagesTab->count(); ++i) {
+        auto p = pagesTab->page(i);
+        const QString &path = p->savedState().path;
+        bool found = false;
+        if (!path.isEmpty()) {
+            QStandardItem *item = dataModel->itemFromPath(path);
+            if (item) {
+                pagesTab->setTabText(i, path);
+                pagesTab->setTabToolTip(i, path);
+                p->setData(path, item);
+                found = true;
+            }
+        }
+        if (!found) {
+            QStandardItem *item = dataModel->itemFromIndex(lst.at(i));
+            if (item) {
+                QString dpath = dataModel->pathFromItem(item);
+                pagesTab->setTabText(i, dpath);
+                pagesTab->setTabToolTip(i, dpath);
+                p->setData(dpath, item);
+            }
         }
     }
+
+    const QStandardItem *item = pagesTab->currentPage()->dataItem();
+    syncingTreeSelection_ = true;
+    dataTree->setCurrentIndex(dataModel->indexFromItem(item));
+    syncingTreeSelection_ = false;
+    updateInfoTable(item);
 }
 
-QDataBrowser::PlotType QDataBrowser::plotType() const
+QString QDataBrowser::currentDataPath() const
 {
-    return ((QPlotDataView *)dataView[1])->plotType();
+    return pagesTab->currentPage()->dataPath();
 }
 
-QDataBrowser::ViewType QDataBrowser::activeView() const
+bool QDataBrowser::setCurrentDataPath(const QString &path)
 {
-    return QDataBrowser::ViewType(viewTab->currentIndex());
-}
-
-void QDataBrowser::setPlotType(PlotType t)
-{
-    ((QPlotDataView *)dataView[1])->setPlotType(t);
-}
-
-void QDataBrowser::setActiveView(ViewType t)
-{
-    viewTab->setCurrentIndex(t);
-}
-
-QStandardItem *QDataBrowser::fromPath(const QString &path) const
-{
-    if (path == "/" || path == "")
-        return dataModel->invisibleRootItem();
-
-    QStringList lst = path.split('/');
-    if (path.startsWith('/'))
-        lst.takeFirst();
-    QStandardItem *i = dataModel->invisibleRootItem();
-    for (const QString &s : lst)
-    {
-        QStandardItem *j = findChild(s, i);
-        if (j == nullptr)
-            return nullptr;
-        else
-            i = j;
-    }
-    return i;
-}
-
-QStandardItem *QDataBrowser::findChild(const QString &name, QStandardItem *parent) const
-{
-    for (int row = 0; row < parent->rowCount(); ++row)
-    {
-        QStandardItem *ch = parent->child(row);
-        QString s = ch->text();
-        if (s == name)
-            return ch;
-    }
-    return nullptr;
-}
-
-bool QDataBrowser::isGroup(QStandardItem *i)
-{
-    if (i == nullptr)
+    QStandardItem *item = dataModel->itemFromPath(path);
+    if (!item)
         return false;
-    return i == dataModel->invisibleRootItem() || i->data().value<DataStorePtr>().isNull();
+    dataTree->setCurrentIndex(dataModel->indexFromItem(item));
+    return true;
 }
 
-QString QDataBrowser::itemPath(QStandardItem *i)
+void QDataBrowser::setCurrentViewType(ViewType v)
 {
-    if (i == nullptr || i == dataModel->invisibleRootItem())
-        return QString();
-    return QString("%1/%2").arg(itemPath(i->parent())).arg(i->text());
+    pagesTab->currentPage()->setActiveView(v);
 }
 
-bool QDataBrowser::dataUpdated(QStandardItem *i)
+void QDataBrowser::setCurrentPlotType(PlotType p)
 {
-    if (isGroup(i))
-    {
-        for (int r = 0; r < i->rowCount(); ++r)
-        {
-            if (dataUpdated(i->child(r)))
-                return true;
-        }
-        return false;
-    }
-    else if (i->index() == dataTree->currentIndex())
-    {
-        for (int i = 0; i < nViews; ++i)
-            sliceSelector[i]->updateData();
-        return true;
-    }
-    return false;
+    pagesTab->currentPage()->setPlotType(p);
 }
 
-bool QDataBrowser::isBelow(const QModelIndex &i, const QModelIndex &g)
+QDataBrowser::PlotType QDataBrowser::currentPlotType() const
 {
-    QModelIndex p = i;
-    while (p.isValid())
-    {
-        p = p.parent();
-        if (p == g)
+    return pagesTab->currentPage()->plotType();
+}
+
+QDataBrowser::ViewType QDataBrowser::currentViewType() const
+{
+    return pagesTab->currentPage()->activeView();
+}
+
+int QDataBrowser::pageCount() const
+{
+    return pagesTab->count();
+}
+
+void QDataBrowser::addPage(const QString &path)
+{
+    pagesTab->addPage();
+    setCurrentDataPath(path);
+}
+
+void QDataBrowser::insertPage(int index, const QString &path)
+{
+    pagesTab->insertPage(index);
+    setCurrentDataPath(path);
+}
+
+int QDataBrowser::currentPage() const
+{
+    return pagesTab->currentIndex();
+}
+
+void QDataBrowser::setCurrentPage(int index)
+{
+    pagesTab->setCurrentIndex(index);
+}
+
+bool QDataBrowser::hasSavedState() const
+{
+    for (int i = 0; i < pagesTab->count(); ++i) {
+        if (!(pagesTab->page(i)->savedState().path.isEmpty()))
             return true;
     }
     return false;
 }
 
-void QDataBrowser::updateInfoTable(QStandardItem *it)
+void QDataBrowser::updateInfoTable(const QStandardItem *it)
 {
-    DataStorePtr D = it->data().value<DataStorePtr>();
+    infoTable->clear();
+
+    if (!it)
+        return;
+
+    DataSetPtr D = it->data().value<DataSetPtr>();
     if (!D)
         return;
+
+    if (dataModel->squeezeSingletonDims()) {
+        QVariant V = it->data(Qt::UserRole + 2);
+        if (!V.isNull())
+            D = V.value<DataSetPtr>();
+    }
 
     infoTable->setColumnCount(2);
     infoTable->setRowCount(4 + D->ndim());
@@ -553,8 +658,7 @@ void QDataBrowser::updateInfoTable(QStandardItem *it)
     else
     {
         shapeStr = QString::number(D->dim()[0]);
-        for (int i = 1; i < D->ndim(); ++i)
-        {
+        for (int i = 1; i < (int) D->ndim(); ++i) {
             shapeStr += " × ";
             shapeStr += QString::number(D->dim()[i]);
         }
@@ -562,8 +666,7 @@ void QDataBrowser::updateInfoTable(QStandardItem *it)
     item = new QTableWidgetItem(shapeStr);
     infoTable->setItem(r, 1, item);
 
-    for (int i = 0; i < D->ndim(); ++i)
-    {
+    for (int i = 0; i < (int) D->ndim(); ++i) {
         r++;
         item = new QTableWidgetItem(QString("D%1").arg(i));
         infoTable->setItem(r, 0, item);
@@ -592,32 +695,15 @@ void QDataBrowser::onLeftSplitterMoved(int pos, int index)
 
     if (leftSize > 0)
     {
-        leftPanelBt->setChecked(true);
-        leftPanelBt->setToolTip("Hide left panel");
+        pagesTab->leftPanelButton()->setChecked(true);
+        pagesTab->leftPanelButton()->setToolTip("Hide left panel");
     }
     else
     {
-        leftPanelBt->setChecked(false);
-        leftPanelBt->setToolTip("Show left panel");
+        pagesTab->leftPanelButton()->setChecked(false);
+        pagesTab->leftPanelButton()->setToolTip("Show left panel");
     }
     lastLeftPanelPos = qMax(leftSize, 50);
-}
-
-void QDataBrowser::onBottomSplitterMoved(int pos, int index)
-{
-    int bottomSize = bottomSplitter->sizes().back();
-
-    if (bottomSize > 0)
-    {
-        bottomPanelBt->setChecked(true);
-        bottomPanelBt->setToolTip("Hide bottom panel");
-    }
-    else
-    {
-        bottomPanelBt->setChecked(false);
-        bottomPanelBt->setToolTip("Show bottom panel");
-    }
-    lastBottomPanelPos = qMax(bottomSize, 50);
 }
 
 void QDataBrowser::onLeftPanelBtClicked(bool c)
@@ -628,7 +714,7 @@ void QDataBrowser::onLeftPanelBtClicked(bool c)
         sz.front() = lastLeftPanelPos;
         sz.back() -= lastLeftPanelPos;
         setSizes(sz);
-        leftPanelBt->setToolTip("Hide left panel");
+        pagesTab->leftPanelButton()->setToolTip("Hide left panel");
     }
     else
     {
@@ -636,144 +722,31 @@ void QDataBrowser::onLeftPanelBtClicked(bool c)
         sz.front() = 0;
         sz.back() += lastLeftPanelPos;
         setSizes(sz);
-        leftPanelBt->setToolTip("Show left panel");
-    }
-}
-
-void QDataBrowser::onBottomPanelBtClicked(bool c)
-{
-    QList<int> sz = bottomSplitter->sizes();
-    if (c)
-    {
-        sz.back() = lastBottomPanelPos;
-        sz.front() -= lastBottomPanelPos;
-        bottomSplitter->setSizes(sz);
-        bottomPanelBt->setToolTip("Hide bottom panel");
-    }
-    else
-    {
-        lastBottomPanelPos = sz.back();
-        sz.back() = 0;
-        sz.front() += lastBottomPanelPos;
-        bottomSplitter->setSizes(sz);
-        bottomPanelBt->setToolTip("Show bottom panel");
+        pagesTab->leftPanelButton()->setToolTip("Show left panel");
     }
 }
 
 void QDataBrowser::onDataItemSelect(const QModelIndex &selected, const QModelIndex &deselected)
 {
-    const int dim0[nViews] = {2, 1, 2};
+    if (syncingTreeSelection_)
+        return;
+
     QStandardItem *i = selected.isValid() ? dataModel->itemFromIndex(selected) : nullptr;
-    for (int v = 0; v < nViews; ++v)
-    {
-        sliceSelector[v]->clear();
-        dataView[v]->updateView();
-    }
-    infoTable->clear();
-    if (i)
-    {
-        updateInfoTable(i);
-        // get the data
-        DataStorePtr D = i->data().value<DataStorePtr>();
-        // handle singleton dims option
-        if (D && ignoreSingletonDims_ && hasSingletonDim(D))
-        {
-            // create a squeezed proxy data wrapper
-            D = DataStorePtr(new SqueezedDataStore(D));
-            // store it in the proxy container
-            dataProxy.setValue(D);
-        }
-        if (D)
-        {
-            if (D->is_numeric())
-            {
-                for (int i = 0; i < nViews; ++i)
-                {
-                    sliceSelector[i]->assign(D, dim0[i]);
-                    dataView[i]->updateView();
-                }
-            }
-            else
-            {
-                sliceSelector[0]->assign(D, dim0[0]);
-                dataView[0]->updateView();
-                setActiveView(QDataBrowser::Table);
-            }
-        }
-        dataName->setText(itemPath(i));
-        copyPathBt->show();
-    }
-    else
-    {
-        dataName->setText(QString());
-        copyPathBt->hide();
-    }
+    updateInfoTable(i);
+    QString path = selected.isValid() ? dataModel->pathFromIndex(selected) : QString();
+    pagesTab->setCurrentData(path, i);
 }
 
-void QDataBrowser::onCopyPath()
+void QDataBrowser::onPageChanged(int index)
 {
-    QClipboard *clipboard = QGuiApplication::clipboard();
-    QString text = dataName->text();
-    clipboard->setText(text);
-}
-
-void QDataBrowser::onSliceReset() {}
-
-void QDataBrowser::onSliceChanged()
-{
-    int i = viewTab->currentIndex();
-    bool ret = !sliceSelector[i]->slice()->empty();
-    actExportCSV->setEnabled(ret);
-    actExportImg->setEnabled(ret && dataView[i]->canExportImage());
-}
-
-void QDataBrowser::onExportCSV()
-{
-    int i = viewTab->currentIndex();
-    if (sliceSelector[i]->slice()->empty())
+    QDataBrowserPage *p = pagesTab->currentPage();
+    if (!p)
         return;
-
-    QString fname = QFileDialog::getSaveFileName(this,
-                                                 tr("Export data to CSV ..."),
-                                                 "export.csv",
-                                                 tr("CSV files [*.csv](*.csv);; All files (*.*)"));
-    if (fname.isNull())
+    QStandardItem *item = dataModel->itemFromPath(p->dataPath());
+    if (!item)
         return;
-
-    // csv export
-    std::ofstream of(fname.toStdString());
-
-    if (!of.is_open())
-    {
-        QMessageBox::critical(window(),
-                              "Export data to CSV ...",
-                              QString("Error opening file:\n%1").arg(fname));
-        return;
-    }
-
-    sliceSelector[i]->slice()->export_csv(of);
-}
-
-void QDataBrowser::onExportPlot()
-{
-    int i = viewTab->currentIndex();
-    if (!dataView[i]->canExportImage())
-        return;
-    dataView[i]->exportImage();
-}
-
-void QDataBrowser::onCurrentViewChanged(int i)
-{
-    bool ret = !sliceSelector[i]->slice()->empty();
-    actExportCSV->setEnabled(ret);
-    actExportImg->setEnabled(ret && dataView[i]->canExportImage());
-    optionsBt->setMenu(dataView[i]->optionsMenu());
-}
-
-void QDataBrowser::onViewUpdated()
-{
-    int i = viewTab->currentIndex();
-    bool ret = !sliceSelector[i]->slice()->empty();
-    actExportCSV->setEnabled(ret);
-    actExportImg->setEnabled(ret && dataView[i]->canExportImage());
+    syncingTreeSelection_ = true;
+    dataTree->setCurrentIndex(dataModel->indexFromItem(item));
+    syncingTreeSelection_ = false;
+    updateInfoTable(item);
 }

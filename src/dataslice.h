@@ -3,17 +3,16 @@
 
 #include "qdatabrowser.h"
 
-#include <QSharedPointer>
 #include <cstring>
 
-typedef QSharedPointer<AbstractDataStore> DataStorePtr;
+typedef QSharedPointer<AbstractDataSet> DataSetPtr;
 
-class DataSlice : public AbstractDataStore
+class DataSlice : public AbstractDataSet
 {
 public:
     DataSlice() = default;
 
-    const DataStorePtr dataStore() const { return D_; }
+    const DataSetPtr dataStore() const { return D_; }
 
     bool is_numeric() const override { return !data_.empty(); }
     bool hasErrors() const override { return !err_.empty(); }
@@ -50,9 +49,9 @@ public:
     const std::string &text_data(size_t i, size_t j) const { return txtdata_[i + j * dim_[0]]; }
 
     void clear();
-    void assign(const DataStorePtr d, size_t dx, const dim_t &i0);
-    void assign(const DataStorePtr d, size_t dx, size_t dy, const dim_t &i0);
-    void assign(const DataStorePtr d, size_t dims = 2);
+    void assign(const DataSetPtr d, size_t dx, const dim_t &i0);
+    void assign(const DataSetPtr d, size_t dx, size_t dy, const dim_t &i0);
+    void assign(const DataSetPtr d, size_t dims = 2);
     void assign(const dim_t &new_i0);
     void update();
 
@@ -65,7 +64,7 @@ protected:
     vec_t data_, err_, x_, y_;         // slice data
     strvec_t txtdata_;                 // text data
     strvec_t x_category_, y_category_; // category data for x & y
-    QWeakPointer<AbstractDataStore> D_;
+    QWeakPointer<AbstractDataSet> D_;
 
     size_t _get_(size_t d, const dim_t &i0, const vec_t &yy, size_t n, double *v) const;
 
@@ -82,6 +81,6 @@ protected:
     void assign_(const dim_t &new_i0);
 };
 
-Q_DECLARE_METATYPE(DataStorePtr)
+Q_DECLARE_METATYPE(DataSetPtr)
 
 #endif // DATASLICE_H

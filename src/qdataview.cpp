@@ -1,30 +1,48 @@
 #include "qdataview.h"
+#include "legendview.h"
+#include "qdatasliceselector.h"
+#include "value_with_error.h"
 
+#include <QComboBox>
+#include <QFont>
+#include <QFontDatabase>
 #include <QLabel>
+#include <QMatPlotWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QSpinBox>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTableView>
+#include <QToolButton>
 #include <QVBoxLayout>
-#include <QMatPlotWidget>
-
-#include "qdatasliceselector.h"
+#include <QWidgetAction>
 
 QAbstractDataView::QAbstractDataView(QWidget *parent)
     : QWidget{parent}
 {
 }
 
-void QAbstractDataView::setData(DataSlice *s)
+void QAbstractDataView::setSliceSelector(QDataSliceSelector *s)
 {
-    slice_ = s;
-    updateView_();
+    sliceSelector_ = s;
+    slice_ = sliceSelector_->slice();
+    connect(sliceSelector_, &QDataSliceSelector::sliceChanged, this, &QAbstractDataView::updateView);
+    connect(sliceSelector_,
+            &QDataSliceSelector::sliceDataChanged,
+            this,
+            &QAbstractDataView::updateData);
 }
 
 void QAbstractDataView::updateView()
 {
     updateView_();
     emit viewUpdated();
+}
+
+void QAbstractDataView::updateData()
+{
+    int i = 0;
 }
 
 /************* QTabularDataView *******************/
@@ -37,7 +55,33 @@ public:
     {
     }
 
-    void setData(DataSlice *s)
+    typedef value_with_error<double> value_error_t;
+    typedef value_error_t::iosfmt iosfmt;
+    iosfmt fmt_{std::defaultfloat};
+    bool withErrors_{false};
+    int precision_{6};
+
+    QString formatValue(double v) const
+    {
+        std::ostringstream ss;
+        ss << fmt_ << std::setprecision(precision_) << v;
+        return QString::fromUtf8(ss.str().c_str());
+    }
+
+    QString formatValue(double v, double e) const
+    {
+        value_error_t ve(v, e, 1, fmt_, true);
+        return QString::fromUtf8(ve.to_string().c_str());
+    }
+
+    void setFormat(iosfmt fmt, bool withErrors = false)
+    {
+        fmt_ = fmt;
+        withErrors_ = withErrors;
+        dataUpdated();
+    }
+
+    void setDataSlice(DataSlice *s)
     {
         beginResetModel();
         slice_ = s;
@@ -60,9 +104,22 @@ public:
     {
         if (!index.isValid() || role != Qt::DisplayRole || slice_ == nullptr || slice_->empty())
             return QVariant();
-        return slice_->is_numeric()
-                   ? QVariant((*slice_)(index.row(), index.column()))
-                   : QVariant(slice_->text_data(index.row(), index.column()).c_str());
+
+        QString s;
+        int r = index.row();
+        int c = index.column();
+        int k = r + slice_->dim()[0] * c;
+        if (slice_->is_numeric()) {
+            double v = slice_->data()[k];
+            if (withErrors_ && slice_->hasErrors()) {
+                double e = slice_->errors()[k];
+                s = formatValue(v, e);
+            } else
+                s = formatValue(v);
+        } else {
+            s = QString::fromUtf8(slice_->text_data(r, c).c_str());
+        }
+        return s;
     }
     QVariant headerData(int i,
                         Qt::Orientation orientation,
@@ -75,8 +132,8 @@ public:
             if (i < 0 || i >= rowCount())
                 return QVariant();
 
-            return (slice_->is_x_categorical(0)) ? QVariant(slice_->x_category()[i].c_str())
-                                                 : QVariant(slice_->x(i));
+            return (slice_->is_x_categorical(0)) ? QString(slice_->x_category()[i].c_str())
+                                                 : QString::number(slice_->x(i));
         }
         else if (orientation == Qt::Horizontal)
         {
@@ -84,9 +141,17 @@ public:
                 return QVariant();
 
             return (slice_->is_x_categorical(1)) ? QVariant(slice_->y_category()[i].c_str())
-                                                 : QVariant(slice_->x(i));
+                                                 : QString::number(slice_->y(i));
         }
         return QVariant();
+    }
+    void dataUpdated()
+    {
+        if (!validSlice())
+            return;
+        QModelIndex topLeft = index(0, 0);
+        QModelIndex bottomRight = index(rowCount() - 1, columnCount() - 1);
+        emit dataChanged(topLeft, bottomRight);
     }
 
 private:
@@ -107,9 +172,13 @@ QTabularDataView::QTabularDataView(QWidget *parent)
     title_->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     title_->setStyleSheet("font-weight: bold");
 
+    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    view_->setFont(mono);
+
     scalarView_ = new QPlainTextEdit;
     scalarView_->setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
     scalarView_->setReadOnly(true);
+    scalarView_->setFont(mono);
 
     stack_ = new QStackedWidget;
     stack_->addWidget(scalarView_);
@@ -120,6 +189,9 @@ QTabularDataView::QTabularDataView(QWidget *parent)
     setLayout(vbox);
     vbox->addWidget(title_);
     vbox->addWidget(stack_);
+
+    createOptionsMenu();
+    connect(optionsMenu_, &QMenu::aboutToShow, this, &QTabularDataView::updateOptionsMenu);
 }
 
 QIcon QTabularDataView::icon() const
@@ -127,9 +199,14 @@ QIcon QTabularDataView::icon() const
     return QIcon(":/qdatabrowser/icons/lucide/sheet.svg");
 }
 
+void QTabularDataView::updateData()
+{
+    model_->dataUpdated();
+}
+
 void QTabularDataView::updateView_()
 {
-    model_->setData(slice_);
+    model_->setDataSlice(slice_);
     if (!slice_->description().empty())
         title_->setText(slice_->description().c_str());
     else
@@ -149,6 +226,95 @@ void QTabularDataView::updateView_()
     }
 }
 
+QTabularDataView::State QTabularDataView::state() const
+{
+    State s;
+    s.format = model_->fmt_;
+    s.withErrors = model_->withErrors_;
+    s.precision = model_->precision_;
+    return s;
+}
+
+void QTabularDataView::setState(const State &s)
+{
+    model_->precision_ = s.precision;
+    model_->setFormat(s.format, s.withErrors);
+}
+
+void QTabularDataView::createOptionsMenu()
+{
+    optionsMenu_ = new QMenu((QWidget *) this);
+
+    QMenu *m = optionsMenu_;
+    QAction *a;
+
+    formatGroup = new QActionGroup(this);
+    a = m->addAction("Fixed", this, [this]() {
+        bool err = model_->withErrors_;
+        model_->setFormat(std::fixed, err);
+    });
+    a->setCheckable(true);
+    a->setChecked(model_->fmt_ == std::fixed);
+    formatGroup->addAction(a);
+    a = m->addAction("Scientific", this, [this]() {
+        bool err = model_->withErrors_;
+        model_->setFormat(std::scientific, err);
+    });
+    a->setCheckable(true);
+    a->setChecked(model_->fmt_ == std::scientific);
+    formatGroup->addAction(a);
+    a = m->addAction("Auto", this, [this]() {
+        bool err = model_->withErrors_;
+        model_->setFormat(std::defaultfloat, err);
+    });
+    a->setCheckable(true);
+    a->setChecked(model_->fmt_ == std::defaultfloat);
+    formatGroup->addAction(a);
+
+    optionsMenu_->addSeparator();
+
+    auto *wa = new QWidgetAction(m);
+    QWidget *w = new QWidget(m);
+    QHBoxLayout *hbox = new QHBoxLayout;
+    hbox->setContentsMargins(6, 6, 6, 6);
+    w->setLayout(hbox);
+    QLabel *lbl = new QLabel("Precision");
+    QSpinBox *spin = new QSpinBox;
+    spin->setRange(1, 18);
+    spin->setValue(model_->precision_);
+    hbox->addWidget(lbl);
+    hbox->addWidget(spin);
+
+    wa->setDefaultWidget(w);
+    m->addAction(wa);
+    connect(spin, SIGNAL(valueChanged(int)), this, SLOT(setPrecision(int)));
+
+    optionsMenu_->addSeparator();
+
+    errorAct = m->addAction("Show Errors", this, [this](bool b) {
+        QDataTableModel::iosfmt f = this->model_->fmt_;
+        this->model_->setFormat(f, b);
+    });
+    errorAct->setCheckable(true);
+    errorAct->setChecked(this->model_->withErrors_);
+    errorAct->setEnabled(slice_ && !slice_->empty() && slice_->hasErrors());
+}
+
+void QTabularDataView::updateOptionsMenu()
+{
+    formatGroup->actions().at(0)->setChecked(this->model_->fmt_ == std::fixed);
+    formatGroup->actions().at(1)->setChecked(this->model_->fmt_ == std::scientific);
+    formatGroup->actions().at(2)->setChecked(this->model_->fmt_ == std::defaultfloat);
+    errorAct->setChecked(this->model_->withErrors_);
+    errorAct->setEnabled(slice_ && !slice_->empty() && slice_->hasErrors());
+}
+
+void QTabularDataView::setPrecision(int v)
+{
+    model_->precision_ = v;
+    updateData();
+}
+
 /************ QPlotDataView  *****************/
 
 QPlotDataView::QPlotDataView(QWidget *parent)
@@ -157,10 +323,46 @@ QPlotDataView::QPlotDataView(QWidget *parent)
     linePlot = new QMatPlotWidget;
     linePlot->setStyleSheet("background: white");
 
-    /* create layout */
-    QVBoxLayout *vbox = new QVBoxLayout;
-    setLayout(vbox);
-    vbox->addWidget(linePlot);
+    legendView_ = new LegendView;
+    legendView_->setColorOrder(linePlot->colorOrder());
+    legendView_->hide();
+
+    /* create layout: splitter lets the user resize the legend panel */
+    splitter_ = new QSplitter(Qt::Horizontal);
+    splitter_->setContentsMargins(0, 0, 0, 0);
+    splitter_->addWidget(linePlot);
+    splitter_->addWidget(legendView_);
+    splitter_->setStretchFactor(0, 1);
+    splitter_->setStretchFactor(1, 0);
+    splitter_->setCollapsible(0, false);
+    splitter_->setCollapsible(1, false);
+    QSizePolicy plcy = splitter_->sizePolicy();
+    plcy.setVerticalPolicy(QSizePolicy::Expanding);
+    splitter_->setSizePolicy(plcy);
+    handleWidth_ = splitter_->handleWidth();
+    //splitter_->setHandleWidth(0);
+
+    auto *hbox = new QHBoxLayout;
+    hbox->addWidget(splitter_);
+    setLayout(hbox);
+
+    connect(legendView_, &LegendView::selectionChanged,
+            this, [this](const QVector<uint> &)
+            { renderPlot_(); });
+
+    connect(legendView_, &LegendView::panelToggled, this, [this](bool open)
+            {
+        const QList<int> sizes = splitter_->sizes();
+        const int total = sizes[0] + sizes[1];
+        if (open) {
+            splitter_->setSizes({total - legendOpenWidth_, legendOpenWidth_});
+            //splitter_->setHandleWidth(handleWidth_);
+        } else {
+            legendOpenWidth_ = sizes[1];
+            const int closedW = legendView_->collapsedWidth();
+            splitter_->setSizes({total - closedW, closedW});
+            //splitter_->setHandleWidth(0);
+        } });
 
     createOptionsMenu();
     connect(optionsMenu_, &QMenu::aboutToShow, this, &QPlotDataView::updateOptionsMenu);
@@ -183,48 +385,180 @@ void QPlotDataView::setPlotType(QDataBrowser::PlotType t)
     updateView_();
 }
 
-void QPlotDataView::setData(DataSlice *s)
+void QPlotDataView::updateView()
 {
-    QAbstractDataView::setData(s);
+    QAbstractDataView::updateView();
+}
+
+void QPlotDataView::updateData()
+{
+    renderPlot_();
 }
 
 void QPlotDataView::updateView_()
+{
+    updateLegend_();
+    renderPlot_();
+}
+
+QPlotDataView::State QPlotDataView::state() const
+{
+    State s;
+    s.plotType = type_;
+    s.autoScaleX = linePlot->autoScaleX();
+    s.autoScaleY = linePlot->autoScaleY();
+    s.logScaleX = linePlot->logScaleX();
+    s.logScaleY = linePlot->logScaleY();
+    s.grid = linePlot->grid();
+    s.legendOpenWidth = legendOpenWidth_;
+    s.legendCollapsed = legendView_->isCollapsed();
+    s.legendCheckedValues = legendView_->checkedValues();
+    return s;
+}
+
+void QPlotDataView::setState(const State &s)
+{
+    type_ = s.plotType;
+    legendOpenWidth_ = s.legendOpenWidth;
+    linePlot->setAutoScaleX(s.autoScaleX);
+    linePlot->setAutoScaleY(s.autoScaleY);
+    if (s.logScaleX)
+        linePlot->setLogScaleX();
+    else
+        linePlot->setLinearScaleX();
+    if (s.logScaleY)
+        linePlot->setLogScaleY();
+    else
+        linePlot->setLinearScaleY();
+    linePlot->setGrid(s.grid);
+    legendView_->setCollapsed(s.legendCollapsed);
+    legendView_->setCheckedValues(s.legendCheckedValues);
+}
+
+void QPlotDataView::updateLegend_()
+{
+    const bool showLegend = slice_ && !slice_->empty() && slice_->ndim() == 2 && slice_->dim()[1] > 1;
+    if (!showLegend)
+    {
+        if (legendView_->isVisible() && !legendView_->isCollapsed())
+        {
+            const QList<int> sizes = splitter_->sizes();
+            legendOpenWidth_ = sizes[1];
+        }
+        legendView_->hide();
+        return;
+    }
+
+    QStringList valueLabels;
+    sliceSelector_->getAxisValueLabels(slice_->dy(), valueLabels);
+
+    // Preserve existing per-series selection when only values changed (same Y count).
+    // Pass an empty checked vector when the Y count changes so all start checked.
+    QVector<uint> prevSel;
+    //if (legendView_->isVisible() && legendView_->count() == valueLabels.size())
+    if (legendView_->count() == valueLabels.size())
+        prevSel = legendView_->checkedValues();
+
+    // legendView_->setColorOrder(linePlot->colorOrder());
+    legendView_->setValues(valueLabels, prevSel);
+
+    if (!legendView_->isVisible())
+    {
+        int w;
+        if (legendView_->isCollapsed())
+            w = legendView_->collapsedWidth();
+        else
+        {
+            // On the first ever show legendOpenWidth_ is 0; read the (halved) sizeHint
+            // so the splitter gets a compact initial allocation without any deferred call.
+            if (legendOpenWidth_ <= 0)
+                legendOpenWidth_ = legendView_->sizeHint().width();
+            w = legendOpenWidth_;
+        }
+        legendView_->show();
+        const QList<int> sizes = splitter_->sizes();
+        splitter_->setSizes({sizes[0] + sizes[1] - w, w});
+    }
+}
+
+void QPlotDataView::renderPlot_()
 {
     linePlot->clear();
     linePlot->setXlabel("");
     linePlot->setYlabel("");
     linePlot->setTitle("");
 
-    bool haserr = slice_ && !slice_->empty() && slice_->hasErrors();
+    if (!slice_ || slice_->empty() || !slice_->is_numeric())
+        return;
+
+    bool haserr = slice_->hasErrors();
     if (!haserr && type_ == QDataBrowser::ErrorBar)
         type_ = QDataBrowser::Line;
 
-    if (!slice_ || slice_->empty())
+    if (slice_->ndim() == 2)
     {
-        return;
-    }
+        const double *p = slice_->data().data();
+        const double *dp = p;
+        if (haserr)
+            dp = slice_->errors().data();
 
-    switch (type_)
+        int nx = slice_->dim()[0];
+        auto clr = linePlot->colorOrder();
+        int nc = clr.size();
+
+        // Legend drives the per-series selection; empty = nothing shown
+        const QVector<uint> ySel = legendView_->checkedValues();
+        const QSet<uint> checkedSet(ySel.begin(), ySel.end());
+        for (uint j = 0; j < slice_->dim()[1]; j++, p += nx, dp += nx)
+        {
+            if (!checkedSet.contains(j))
+                continue;
+            AbstractDataSet::vec_t v(p, p + nx);
+            switch (type_)
+            {
+            case QDataBrowser::Line:
+                linePlot->plot(slice_->x(), v, QString(), clr[j % nc]);
+                break;
+            case QDataBrowser::Points:
+                linePlot->plot(slice_->x(), v, "o", clr[j % nc]);
+                break;
+            case QDataBrowser::LineAndPoints:
+                linePlot->plot(slice_->x(), v, "o-", clr[j % nc]);
+                break;
+            case QDataBrowser::Stairs:
+                linePlot->stairs(slice_->x(), v, QString(), clr[j % nc]);
+                break;
+            case QDataBrowser::ErrorBar:
+            {
+                AbstractDataSet::vec_t dv(dp, dp + nx);
+                linePlot->errorbar(slice_->x(), v, dv, "o-", clr[j % nc]);
+            }
+            break;
+            }
+        }
+    }
+    else
     {
-    case QDataBrowser::Line:
-        linePlot->plot(slice_->x(), slice_->data());
-        break;
-    case QDataBrowser::Points:
-        linePlot->plot(slice_->x(), slice_->data(), "o");
-        break;
-    case QDataBrowser::LineAndPoints:
-        linePlot->plot(slice_->x(), slice_->data(), "o-");
-        break;
-    case QDataBrowser::Stairs:
-        linePlot->stairs(slice_->x(), slice_->data());
-        break;
-    case QDataBrowser::ErrorBar:
-        linePlot->errorbar(slice_->x(), slice_->data(), slice_->errors(), "o-");
-        break;
+        switch (type_)
+        {
+        case QDataBrowser::Line:
+            linePlot->plot(slice_->x(), slice_->data());
+            break;
+        case QDataBrowser::Points:
+            linePlot->plot(slice_->x(), slice_->data(), "o");
+            break;
+        case QDataBrowser::LineAndPoints:
+            linePlot->plot(slice_->x(), slice_->data(), "o-");
+            break;
+        case QDataBrowser::Stairs:
+            linePlot->stairs(slice_->x(), slice_->data());
+            break;
+        case QDataBrowser::ErrorBar:
+            linePlot->errorbar(slice_->x(), slice_->data(), slice_->errors(), "o-");
+            break;
+        }
     }
     linePlot->setXlabel(slice_->dim_desc(0).c_str());
-    // if (slice_->ndim() > 1)
-    //     linePlot->setYlabel(slice_->dim_desc(1).c_str());
     linePlot->setTitle(slice_->description().c_str());
 }
 
@@ -354,6 +688,11 @@ void QHeatMapDataView::exportImage() const
     heatMap->exportToFile("export.pdf", QSize(160, 120));
 }
 
+void QHeatMapDataView::updateData()
+{
+    updateView_();
+}
+
 void QHeatMapDataView::updateView_()
 {
     heatMap->clear();
@@ -361,8 +700,7 @@ void QHeatMapDataView::updateView_()
     heatMap->setYlabel("");
     heatMap->setTitle("");
 
-    if (!slice_ || slice_->empty())
-    {
+    if (!slice_ || slice_->empty() || !slice_->is_numeric()) {
         return;
     }
 
@@ -374,6 +712,21 @@ void QHeatMapDataView::updateView_()
     if (ndim > 1)
         heatMap->setYlabel(slice_->dim_name(1).c_str());
     heatMap->setTitle(slice_->description().c_str());
+}
+
+QHeatMapDataView::State QHeatMapDataView::state() const
+{
+    State s;
+    s.colormap = cmap_;
+    s.grid = heatMap->grid();
+    return s;
+}
+
+void QHeatMapDataView::setState(const State &s)
+{
+    cmap_ = s.colormap;
+    heatMap->setColorMap(static_cast<QMatPlotWidget::ColorMapType>(cmap_));
+    heatMap->setGrid(s.grid);
 }
 
 void QHeatMapDataView::createOptionsMenu()

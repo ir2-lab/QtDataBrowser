@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/qdatabrowser/">
+    <qresource prefix="/qdatabrowser">
         <file>icons/lucide/arrow-left-right.svg</file>
         <file>icons/lucide/chart-pie.svg</file>
         <file>icons/lucide/copy.svg</file>
@@ -18,5 +18,14 @@
         <file>icons/lucide/chart-spline.svg</file>
         <file>icons/lucide/download.svg</file>
         <file>icons/lucide/settings-2.svg</file>
+        <file>icons/lucide/list-filter.svg</file>
+        <file>icons/lucide/chevron-right.svg</file>
+        <file>icons/lucide/chevrons-right.svg</file>
+        <file>icons/lucide/chevrons-left.svg</file>
+        <file>icons/lucide/chevron-left.svg</file>
+        <file>icons/lucide/panel-right-open.svg</file>
+        <file>icons/lucide/panel-right-close.svg</file>
+        <file>icons/lucide/panel-right.svg</file>
+        <file>icons/lucide/plus.svg</file>
     </qresource>
 </RCC>

@@ -5,71 +5,81 @@
 
 #include <QWidget>
 
-class QButtonGroup;
 class QComboBox;
-class QGridLayout;
 class QLabel;
-class QSlider;
-class QLineEdit;
 class QToolButton;
+class QHBoxLayout;
+
+class AxisValueSelect;
+class FilterView;
 
 class QDataSliceSelector : public QWidget
 {
     Q_OBJECT
 
 public:
+    struct State
+    {
+        int dx = -1;
+        int dy = -1;
+        AbstractDataSet::dim_t i0;
+    };
+
     explicit QDataSliceSelector(QWidget *parent = nullptr);
 
     void clear();
-    void assign(DataStorePtr D, int dim = 1);
+    void assign(DataSetPtr D, int dim = 1);
+    void assign(DataSetPtr D, const State &prev);
 
     DataSlice *slice() { return &slice_; }
     void updateData();
 
+    void setXLabel(const QString &text);
+    void setYLabel(const QString &text);
+
+    void getAxisValueLabels(int axisId, QStringList &labels);
+
+    State state() const;
+
 signals:
     void sliceReset();
     void sliceChanged();
+    void sliceDataChanged();
 
 protected:
-    // data
     DataSlice slice_;
-
-    // controls
-    QComboBox *cbX;
-    QComboBox *cbY;
-    QToolButton *btExchangeXY;
-
-    // grid of dims
     static const int maxTicks = 15;
-    QWidget *gridPanel;
-    QGridLayout *grid;
-    struct gridElement
-    {
-        int d;
-        QLabel *label;
-        QSlider *slider;
-        QLineEdit *value;
-        QStringList valueLbls;
-    };
-    QVector<gridElement> gridElements;
+
+private:
+    QLabel *lblX_{nullptr};
+    QLabel *lblY_{nullptr};
+    QComboBox *cbX_{nullptr};
+    QComboBox *cbY_{nullptr};
+    QToolButton *btExchangeXY_{nullptr};
+    AxisValueSelect *dimSelect_{nullptr};
+    QWidget *xy_{nullptr};
+
     void clearCtrls();
     void initCtrls();
+    void finishAssign(DataSetPtr D);
 
-    enum updFlag { All, XYex, SldrOnly };
-
+    enum updFlag
+    {
+        All,
+        XYex,
+        SldrOnly
+    };
     void updateCtrls(updFlag f);
-
     void connectCtrls();
     void disconnectCtrls();
     void blockCtrls(bool b);
     QString dimLabel(int d);
-    void setSliderLabels();
 
-protected slots:
+private slots:
     void onX(int new_dx);
-    void onY(int d);
+    void onY(int new_dy);
     void onExchangeXY(bool);
-    void onI0(int v);
+    void onI0(int axisId, int v);
 };
 
 #endif // QDATASLICESELECTOR_H

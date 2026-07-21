@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(QtDataBrowser 
-  VERSION 0.2.0 
+  VERSION 0.2.1 
   LANGUAGES CXX
   DESCRIPTION "A Qt widget for exploring multi-dimensional scientific data"
   HOMEPAGE_URL https://github.com/ir2-lab/QtDataBrowser
