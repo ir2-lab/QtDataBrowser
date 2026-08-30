@@ -26,19 +26,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            base-devel
-            git
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-qt5-base
-            mingw-w64-ucrt-x86_64-qt5-svg
-            mingw-w64-ucrt-x86_64-gcc
+      - name: Set up pinned toolchain
+        uses: ir2-lab/windows-build-env@2026.06
 
       - name: Resolve version
         id: ver
@@ -55,8 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = gh release list --repo gapost/qmatplotwidget --limit 1 --json tagName --jq '.[0].tagName'
-          gh release download $tag --repo gapost/qmatplotwidget `
+          gh release download v0.2.2 --repo gapost/qmatplotwidget `
             --pattern "*.pkg.tar.zst" `
             --dir C:\Temp\qmatplotwidget-pkgs
 
